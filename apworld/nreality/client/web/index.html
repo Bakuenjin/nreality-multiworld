@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>NReality Multiworld</title><link rel="stylesheet" href="/style.css">
+<script src="/ruffle/ruffle.js" defer></script><script src="/app.js" defer></script></head>
+<body><main class="layout">
+<section class="play">
+<div id="game"><div id="panel" class="panel"></div></div>
+<p id="status" role="status"></p>
+<form id="local" hidden><input id="item" type="number" min="0" max="199" value="100" required aria-label="Episode"><button type="submit">Test-Item</button></form>
+</section>
+<section class="console" aria-label="Konsole">
+<label class="others"><input type="checkbox" id="others"> Funde anderer Spieler</label>
+<div id="log" role="log" aria-live="polite"></div>
+<form id="command"><input id="input" autocomplete="off" spellcheck="false" aria-label="Chat oder Befehl" placeholder="Chat, !hint, /connect …"><button type="submit">Senden</button></form>
+</section>
+</main></body></html>

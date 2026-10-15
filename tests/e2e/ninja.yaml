@@ -1,0 +1,11 @@
+name: Ninja
+game: NReality
+NReality:
+  episode_columns: ["190-199"]
+  max_episode_row: 9
+  episode_count: 2
+  starting_episodes: 1
+  goal_percentage: 50
+  death_link: true
+  start_inventory:
+    Episode 199: 1
