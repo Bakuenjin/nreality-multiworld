@@ -5,6 +5,12 @@ from Options import DeathLink, OptionGroup, OptionSet, PerGameCommonOptions, Ran
 from .data import COLUMN_NAMES
 
 
+class BoardOrder(frozenset):
+    # YAML templates list a default set in iteration order; keep the columns in board order.
+    def __iter__(self):
+        return (name for name in COLUMN_NAMES if name in self)
+
+
 class EpisodeColumns(OptionSet):
     """
     Episode columns that may appear in the seed. A column holds ten consecutive episodes.
@@ -13,7 +19,7 @@ class EpisodeColumns(OptionSet):
 
     display_name = "Episode Columns"
     valid_keys = COLUMN_NAMES
-    default = frozenset(COLUMN_NAMES)
+    default = BoardOrder(COLUMN_NAMES)
 
 
 class MaxEpisodeRow(Range):

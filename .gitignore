@@ -3,3 +3,4 @@ originals/
 .local/
 __pycache__/
 *.pyc
+dist/

@@ -11,6 +11,9 @@ DeathLink is supported (suicides don't count).
 3. On first start, select your own `NReality6g2.zip` ([n.infunity.com](https://n.infunity.com/)) on the page that opens.
 4. Type `/connect <address>` in the console on the right, enter your slot name and play.
 
+Your player YAML can be created with the **Options Creator** in the MultiworldGG launcher, or start from the
+`NReality.yaml` attached to the release.
+
 The client builds the game from the ZIP (no Java needed), downloads Ruffle once and keeps both in the MultiworldGG
 user folder under `nreality/`. This project ships no game files.
 See the [setup guide](apworld/nreality/docs/setup_en.md) ([Deutsch](apworld/nreality/docs/setup_de.md)).
@@ -37,8 +40,8 @@ See the [setup guide](apworld/nreality/docs/setup_en.md) ([Deutsch](apworld/nrea
    `.local/` and links the world into it.
 5. `sh tools/mwgg.sh Launcher.py "NReality Client"` starts the client; append `-- --game-dir "$PWD/.local"` to use
    the development build instead of uploading the ZIP.
-6. `sh tools/mwgg.sh Launcher.py "Build APWorlds" -- NReality` builds the `.apworld`
-   (output in `.local/vendor/MultiworldGG/build/apworlds/`).
+6. `sh tools/release.sh` puts the release files into `dist/`: `nreality.apworld` and the `NReality.yaml` options
+   template.
 
 To read the game's code: `python3 tools/extract.py && sh tools/decompile.sh` (output in `.local/analysis/`).
 

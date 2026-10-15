@@ -21,6 +21,11 @@ gesperrte Episoden des Seeds. Chat, `!hint` und die übrigen Befehle laufen übe
 
 Levelabschlüsse bleiben im Browser gespeichert, bis der Server sie bestätigt, und überstehen so Verbindungsabbrüche.
 
+## Spieler-YAML
+
+Die Optionsdatei mit dem **Options Creator** im MultiworldGG-Launcher erstellen oder die Vorlage `NReality.yaml`
+aus dem Release anpassen.
+
 ## Generieren
 
 Wer die Multiworld generiert, braucht nur die `.apworld`, nicht das Spiel. Das erzeugte Archiv auf multiworld.gg

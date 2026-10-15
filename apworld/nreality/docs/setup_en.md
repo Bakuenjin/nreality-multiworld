@@ -21,6 +21,11 @@ still locked. Chat, `!hint` and the other commands work in the same console.
 
 Level completions are stored in the browser until the server confirms them, so they survive connection losses.
 
+## Player YAML
+
+Create your options file with the **Options Creator** in the MultiworldGG launcher, or edit the `NReality.yaml`
+template from the release.
+
 ## Generating
 
 Whoever generates the multiworld needs only the `.apworld`, not the game. Upload the generated archive to multiworld.gg
