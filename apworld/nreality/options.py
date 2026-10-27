@@ -68,6 +68,30 @@ class GoalPercentage(Range):
     default = 50
 
 
+class DeathLinkAmnesty(Range):
+    """
+    Only every Nth death of yours is sent as a DeathLink. 1 sends every death.
+    DeathLinks from other players always kill your ninja.
+    """
+
+    display_name = "Death Link Amnesty"
+    range_start = 1
+    range_end = 20
+    default = 1
+
+
+class DeathLinkCooldown(Range):
+    """
+    Seconds after sending a DeathLink in which your deaths are neither sent nor counted. 0 turns it off.
+    DeathLinks from other players always kill your ninja.
+    """
+
+    display_name = "Death Link Cooldown"
+    range_start = 0
+    range_end = 600
+    default = 120
+
+
 @dataclass
 class NRealityOptions(PerGameCommonOptions):
     episode_columns: EpisodeColumns
@@ -76,10 +100,12 @@ class NRealityOptions(PerGameCommonOptions):
     starting_episodes: StartingEpisodes
     goal_percentage: GoalPercentage
     death_link: DeathLink
+    death_link_amnesty: DeathLinkAmnesty
+    death_link_cooldown: DeathLinkCooldown
 
 
 option_groups = [
     OptionGroup("Episodes", [EpisodeColumns, MaxEpisodeRow, EpisodeCount, StartingEpisodes]),
     OptionGroup("Goal", [GoalPercentage]),
-    OptionGroup("Multiplayer", [DeathLink]),
+    OptionGroup("Multiplayer", [DeathLink, DeathLinkAmnesty, DeathLinkCooldown]),
 ]

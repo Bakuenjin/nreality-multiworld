@@ -116,4 +116,6 @@ class NRealityWorld(World):
     def fill_slot_data(self) -> Mapping[str, Any]:
         return dict(episodes=self.episodes, goal_episodes=self.goal_episodes,
                     death_link=bool(self.options.death_link),
+                    death_link_amnesty=self.options.death_link_amnesty.value,
+                    death_link_cooldown=self.options.death_link_cooldown.value,
                     world_version=self.world_version.as_simple_string())

@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NReality Player Options</title>
+<meta name="description" content="Create a player YAML for NReality on MultiworldGG.">
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f8; --panel: #ffffff; --line: #dde1e4; --text: #1d2124; --muted: #5d6870; --accent: #2f6f51; --accent-text: #fff; --error: #b3261e;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #161819; --panel: #212528; --line: #343a3e; --text: #e6e8ea; --muted: #9aa6ad; --accent: #3f8f69; --accent-text: #fff; --error: #ff8a80; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.5; }
+main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 28px; margin: 0 0 4px; }
+.intro { color: var(--muted); margin: 0 0 24px; }
+a { color: var(--accent); }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px 20px; margin-bottom: 16px; }
+h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 16px 0 4px; }
+.option { display: grid; grid-template-columns: 1fr auto; gap: 8px 20px; padding: 14px 0; border-top: 1px solid var(--line); }
+h2 + .option { border-top: 0; }
+.option label.title { font-weight: 600; }
+.option p { margin: 2px 0 0; color: var(--muted); font-size: 14px; white-space: pre-line; }
+.control { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.control.wide { grid-column: 1 / -1; justify-content: flex-start; flex-wrap: wrap; }
+input, select, button { font: inherit; color: inherit; }
+input[type=text], input[type=number], select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+input[type=number] { width: 80px; }
+input[type=range] { width: 160px; accent-color: var(--accent); }
+input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+.random { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 4px 12px; width: 100%; }
+.keys label { display: flex; gap: 6px; align-items: center; font-variant-numeric: tabular-nums; }
+.small { font-size: 13px; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; }
+.name { display: flex; flex-direction: column; gap: 6px; padding: 16px 0; }
+.name input { max-width: 280px; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 20px 0 12px; }
+.primary { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 6px; padding: 9px 18px; cursor: pointer; }
+.secondary { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 16px; cursor: pointer; }
+#message { font-size: 14px; color: var(--muted); }
+#message.error { color: var(--error); }
+pre { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; overflow-x: auto; font-size: 13px; }
+footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[disabled] { opacity: .45; }
+@media (max-width: 600px) {
+  .option { grid-template-columns: 1fr; }
+  .control { justify-content: flex-start; flex-wrap: wrap; }
+  input[type=range] { width: 100%; }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>NReality Player Options</h1>
+  <p class="intro">Create your player YAML for <a href="https://github.com/Bakuenjin/nreality-multiworld">NReality Multiworld</a>.</p>
+  <form id="form" novalidate>
+    <section>
+      <div class="name">
+        <label class="title" for="player-name"><strong>Player name</strong></label>
+        <input id="player-name" type="text" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Your slot name">
+      </div>
+    </section>
+    <div id="groups"></div>
+    <div class="actions">
+      <button class="primary" type="submit">Download YAML</button>
+      <button class="secondary" type="button" id="copy">Copy</button>
+      <button class="secondary" type="button" id="reset">Reset to defaults</button>
+      <span id="message" role="status"></span>
+    </div>
+  </form>
+  <pre id="preview" aria-label="YAML preview"></pre>
+  <footer id="footer"></footer>
+</main>
+<script>
+const STORE = 'nreality-options';
+const $ = id => document.getElementById(id);
+let meta, options = [], state = {name: '', values: {}, random: {}};
+
+const quote = text => `'${String(text).replace(/'/g, "''")}'`;
+// Option descriptions are plain text with **bold** markers (as on multiworld.gg).
+const formatted = text => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+function defaults() {
+  state.values = {}; state.random = {};
+  for (const o of options) state.values[o.key] = o.type === 'set' ? [...o.default] : o.default;
+}
+
+function restore() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
+    if (!saved) return;
+    state.name = typeof saved.name === 'string' ? saved.name.slice(0, 16) : '';
+    for (const o of options) {
+      const value = saved.values?.[o.key];
+      if (o.type === 'set' && Array.isArray(value)) state.values[o.key] = o.keys.filter(k => value.includes(k));
+      else if (o.type === 'range' && Number.isInteger(value)) state.values[o.key] = Math.min(o.max, Math.max(o.min, value));
+      else if (o.type === 'toggle' && typeof value === 'boolean') state.values[o.key] = value;
+      else if (o.type === 'choice' && o.choices.some(c => c.value === value)) state.values[o.key] = value;
+      if (o.random && saved.random?.[o.key] === true) state.random[o.key] = true;
+    }
+  } catch { /* storage unavailable or invalid: keep defaults */ }
+}
+
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify(state)); } catch { /* not essential */ }
+}
+
+function yaml() {
+  const lines = [`name: ${quote(state.name || 'Player{number}')}`, `game: ${meta.game}`,
+    `description: ${quote('Generated by the NReality options page')}`, `${meta.game}:`];
+  for (const o of options) {
+    const value = state.values[o.key];
+    if (state.random[o.key]) lines.push(`  ${o.key}: random`);
+    else if (o.type === 'set') lines.push(value.length ? `  ${o.key}:\n${value.map(k => `    - ${quote(k)}`).join('\n')}` : `  ${o.key}: []`);
+    else if (o.type === 'toggle') lines.push(`  ${o.key}: ${value ? 'true' : 'false'}`);
+    else lines.push(`  ${o.key}: ${value}`);
+  }
+  return lines.join('\n') + '\n';
+}
+
+function update() {
+  $('preview').textContent = yaml();
+  save();
+}
+
+function control(o) {
+  const box = document.createElement('div');
+  box.className = 'control' + (o.type === 'set' ? ' wide' : '');
+  const id = `opt-${o.key}`;
+  if (o.type === 'range') {
+    const slider = Object.assign(document.createElement('input'), {type: 'range', id, min: o.min, max: o.max, value: state.values[o.key]});
+    const number = Object.assign(document.createElement('input'), {type: 'number', min: o.min, max: o.max, value: state.values[o.key]});
+    number.setAttribute('aria-label', o.name);
+    const set = value => {
+      const n = Math.min(o.max, Math.max(o.min, Math.round(Number(value) || 0)));
+      state.values[o.key] = n; slider.value = n; number.value = n; update();
+    };
+    slider.addEventListener('input', () => set(slider.value));
+    number.addEventListener('change', () => set(number.value));
+    box.append(slider, number);
+  } else if (o.type === 'choice') {
+    const select = Object.assign(document.createElement('select'), {id});
+    for (const c of o.choices) select.append(new Option(c.label, c.value));
+    select.value = state.values[o.key];
+    select.addEventListener('change', () => { state.values[o.key] = select.value; update(); });
+    box.append(select);
+  } else if (o.type === 'toggle') {
+    const check = Object.assign(document.createElement('input'), {type: 'checkbox', id, checked: state.values[o.key]});
+    check.addEventListener('change', () => { state.values[o.key] = check.checked; update(); });
+    box.append(check);
+  } else if (o.type === 'set') {
+    const grid = document.createElement('div');
+    grid.className = 'keys'; grid.id = id; grid.setAttribute('role', 'group');
+    const boxes = o.keys.map(k => {
+      const label = document.createElement('label');
+      const check = Object.assign(document.createElement('input'), {type: 'checkbox', checked: state.values[o.key].includes(k)});
+      check.addEventListener('change', () => { state.values[o.key] = o.keys.filter((key, i) => boxes[i].checked); update(); });
+      label.append(check, k);
+      grid.append(label);
+      return check;
+    });
+    const all = (checked) => { boxes.forEach(b => b.checked = checked); state.values[o.key] = checked ? [...o.keys] : []; update(); };
+    const allButton = Object.assign(document.createElement('button'), {type: 'button', className: 'small', textContent: 'All'});
+    const noneButton = Object.assign(document.createElement('button'), {type: 'button', className: 'small', textContent: 'None'});
+    allButton.addEventListener('click', () => all(true));
+    noneButton.addEventListener('click', () => all(false));
+    box.append(grid, allButton, noneButton);
+  }
+  if (o.random) {
+    const label = document.createElement('label');
+    label.className = 'random';
+    const check = Object.assign(document.createElement('input'), {type: 'checkbox', checked: !!state.random[o.key]});
+    const toggle = () => {
+      state.random[o.key] = check.checked;
+      box.querySelectorAll('input:not([type=checkbox]), select, input[type=checkbox]:not(.random-box)').forEach(el => el.disabled = check.checked);
+      update();
+    };
+    check.className = 'random-box';
+    check.addEventListener('change', toggle);
+    label.append(check, 'Random');
+    box.append(label);
+    if (check.checked) box.querySelectorAll('input:not(.random-box), select').forEach(el => el.disabled = true);
+  }
+  return box;
+}
+
+function render() {
+  $('player-name').value = state.name;
+  const groups = $('groups');
+  groups.replaceChildren();
+  for (const group of meta.groups) {
+    const section = document.createElement('section');
+    const heading = document.createElement('h2');
+    heading.textContent = group.name;
+    section.append(heading);
+    for (const o of group.options) {
+      const row = document.createElement('div');
+      row.className = 'option';
+      const text = document.createElement('div');
+      const label = document.createElement('label');
+      label.className = 'title'; label.htmlFor = `opt-${o.key}`; label.textContent = o.name;
+      const description = document.createElement('p');
+      description.innerHTML = formatted(o.description);
+      text.append(label, description);
+      row.append(text, control(o));
+      section.append(row);
+    }
+    groups.append(section);
+  }
+  update();
+}
+
+function message(text, error = false) {
+  $('message').textContent = text;
+  $('message').className = error ? 'error' : '';
+}
+
+function needName() {
+  if (state.name.trim()) return false;
+  message('Enter your player name first.', true);
+  $('player-name').focus();
+  return true;
+}
+
+$('player-name').addEventListener('input', event => { state.name = event.target.value; message(''); update(); });
+$('form').addEventListener('submit', event => {
+  event.preventDefault();
+  if (needName()) return;
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([yaml()], {type: 'text/yaml'}));
+  link.download = `${state.name.trim().replace(/[^\w.-]+/g, '_') || 'NReality'}.yaml`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  message('Downloaded.');
+});
+$('copy').addEventListener('click', async () => {
+  if (needName()) return;
+  try { await navigator.clipboard.writeText(yaml()); message('Copied to clipboard.'); }
+  catch { message('Copy failed. Select the text below instead.', true); }
+});
+$('reset').addEventListener('click', () => { defaults(); render(); message('Reset to defaults.'); });
+
+fetch('options.json').then(response => response.json()).then(data => {
+  meta = data;
+  options = data.groups.flatMap(group => group.options);
+  defaults();
+  restore();
+  render();
+  $('footer').textContent = `Options of the NReality world ${data.version}. Generate with MultiworldGG and nreality.apworld installed.`;
+}).catch(() => message('Could not load the options.', true));
+</script>
+</body>
+</html>

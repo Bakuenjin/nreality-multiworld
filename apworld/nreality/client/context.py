@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import math
 import time
 import webbrowser
 from typing import Any
@@ -38,6 +39,11 @@ class NRealityContext(CommonContext):
         # Kept across connection losses so a running level can still report its completion.
         self.unlocked: set[int] = set()
         self.kill_requested = 0.0  # time of the last DeathLink from another world
+        # Limits for own deaths only (slot_data); seeds without them send every death.
+        self.death_link_amnesty = 1
+        self.death_link_cooldown = 0
+        self.deaths_counted = 0
+        self.death_link_sent = 0.0
         self.console = WebConsole(self)
         self.web_commands = self.command_processor(self)
         logger.addHandler(self.console)
@@ -68,6 +74,8 @@ class NRealityContext(CommonContext):
             self.episodes = sorted(args["slot_data"]["episodes"])
             self.goal_episodes = args["slot_data"]["goal_episodes"]
             asyncio.create_task(self.update_death_link(bool(args["slot_data"].get("death_link"))))
+            self.death_link_amnesty = args["slot_data"].get("death_link_amnesty", 1)
+            self.death_link_cooldown = args["slot_data"].get("death_link_cooldown", 0)
             logger.info(f"Game page: {self.game_url}")
         if cmd in ("Connected", "ReceivedItems"):
             received = {data.EPISODE_ID_TO_NUMBER.get(item.item) for item in self.items_received}
@@ -85,6 +93,20 @@ class NRealityContext(CommonContext):
     def on_deathlink(self, data: dict[str, Any]) -> None:
         super().on_deathlink(data)
         self.kill_requested = time.time()
+
+    def count_deaths(self, deaths: int, cause: str) -> None:
+        """Sends own deaths as DeathLink, limited by cooldown and amnesty. Received DeathLinks are never limited."""
+        left = self.death_link_sent + self.death_link_cooldown - time.time()
+        if left > 0:
+            logger.info(f"DeathLink on cooldown ({math.ceil(left)} s left)")
+            return
+        self.deaths_counted += deaths
+        if self.deaths_counted < self.death_link_amnesty:
+            logger.info(f"DeathLink: {self.deaths_counted}/{self.death_link_amnesty} deaths")
+            return
+        self.deaths_counted = 0
+        self.death_link_sent = time.time()
+        asyncio.create_task(self.send_death(f"{self.player_names.get(self.slot, self.auth)} was killed by {cause}."))
 
     def done_locations(self) -> set[int]:
         return self.checked_locations | self.locations_checked
@@ -122,9 +144,8 @@ class NRealityContext(CommonContext):
             self.check_goal()
         self.link.seen(values)
         deaths = max(0, int(values.get("deaths") or 0))
-        if deaths and "DeathLink" in self.tags:  # several deaths within one second count once
-            cause = values.get("cause") or "something"
-            asyncio.create_task(self.send_death(f"{self.player_names.get(self.slot, self.auth)} was killed by {cause}."))
+        if deaths and "DeathLink" in self.tags:
+            self.count_deaths(deaths, (values.get("cause") or "something")[:100])
         # Deaths from other worlds older than a few seconds are dropped instead of hitting a later run.
         kill = time.time() - self.kill_requested < 5
         self.kill_requested = 0.0

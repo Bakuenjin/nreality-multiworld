@@ -36,3 +36,7 @@ Putting `Episode XX` into `start_inventory` always adds that episode to your see
 With the `death_link` option, dying in a level kills the other DeathLink players, and their deaths kill your ninja
 while you are running through a level. Deaths by enemies, fall damage, being crushed and running out of time count.
 Suicide with the kill key never sends a DeathLink. Practise mode, demos and replays are ignored.
+
+Since dying is part of playing N, two options limit only the deaths you send:
+`death_link_amnesty` sends only every Nth death, and `death_link_cooldown` (default 120 seconds) ignores your
+deaths for a while after sending one. DeathLinks from other players always kill your ninja.

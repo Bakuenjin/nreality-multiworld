@@ -5,6 +5,7 @@
 - MultiworldGG
 - `nreality.apworld`
 - Eine eigene Kopie von NReality 6g2: `NReality6g2.zip` von [n.infunity.com](https://n.infunity.com/). Spieldateien werden nicht verteilt.
+- Chrome oder Edge. In Firefox läuft das Spiel spürbar langsamer.
 
 ## Installation
 
@@ -23,8 +24,8 @@ Levelabschlüsse bleiben im Browser gespeichert, bis der Server sie bestätigt, 
 
 ## Spieler-YAML
 
-Die Optionsdatei mit dem **Options Creator** im MultiworldGG-Launcher erstellen oder die Vorlage `NReality.yaml`
-aus dem Release anpassen.
+Die Optionsdatei auf der [Optionsseite](https://bakuenjin.github.io/nreality-multiworld/) oder mit dem **Options Creator** im MultiworldGG-Launcher
+erstellen, oder die Vorlage `NReality.yaml` aus dem Release anpassen.
 
 ## Generieren
 

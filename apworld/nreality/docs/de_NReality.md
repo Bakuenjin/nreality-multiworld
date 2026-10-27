@@ -36,3 +36,7 @@ Einen einstellbaren Prozentsatz der Episoden des Seeds vollständig (alle fünf 
 Mit der Option `death_link` tötet ein Tod im Level die anderen DeathLink-Spieler, und deren Tode töten deinen Ninja,
 während du ein Level spielst. Es zählen Tode durch Gegner, Fallschaden, Zerquetschen und abgelaufene Zeit.
 Selbstmord mit der Kill-Taste sendet nie einen DeathLink. Übungsmodus, Demos und Replays werden ignoriert.
+
+Weil Sterben in N dazugehört, begrenzen zwei Optionen nur die Tode, die du sendest: `death_link_amnesty` sendet nur
+jeden N-ten Tod, `death_link_cooldown` (Standard 120 Sekunden) ignoriert deine Tode eine Weile nach einem gesendeten.
+DeathLinks anderer Spieler töten deinen Ninja immer.

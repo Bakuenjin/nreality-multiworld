@@ -21,6 +21,8 @@ class TestDefaults(NRealityTestBase):
         self.assertEqual(self.world.goal_episodes, 10)
         locations = [loc for loc in self.multiworld.get_locations(self.player) if loc.address is not None]
         self.assertEqual(len(locations), 100)
+        slot_data = self.world.fill_slot_data()
+        self.assertEqual((slot_data["death_link_amnesty"], slot_data["death_link_cooldown"]), (1, 120))
 
     def test_item_pool_matches_locations(self) -> None:
         pool = [item for item in self.multiworld.itempool if item.player == self.player]

@@ -1,0 +1,192 @@
+{
+ "game": "NReality",
+ "version": "0.2.0",
+ "groups": [
+  {
+   "name": "Game Options",
+   "options": [
+    {
+     "key": "progression_balancing",
+     "name": "Progression Balancing",
+     "description": "A system that can move progression earlier, to try and prevent the player from getting stuck and bored early.\n\nA lower setting means more getting stuck. A higher setting means less getting stuck.",
+     "random": true,
+     "type": "range",
+     "default": 50,
+     "min": 0,
+     "max": 99,
+     "named": {
+      "disabled": 0,
+      "normal": 50,
+      "extreme": 99
+     }
+    },
+    {
+     "key": "accessibility",
+     "name": "Accessibility",
+     "description": "Set rules for reachability of your items/locations.\n\n**Full:** ensure everything can be reached and acquired.\n\n**Minimal:** ensure what is needed to reach your goal can be acquired.",
+     "random": true,
+     "type": "choice",
+     "default": "full",
+     "choices": [
+      {
+       "value": "full",
+       "label": "Full"
+      },
+      {
+       "value": "minimal",
+       "label": "Minimal"
+      }
+     ]
+    },
+    {
+     "key": "allow_collecting_from",
+     "name": "Allow Collecting",
+     "description": "If other players are allowed to '!collect' items from your world.",
+     "random": true,
+     "type": "toggle",
+     "default": true
+    }
+   ]
+  },
+  {
+   "name": "Episodes",
+   "options": [
+    {
+     "key": "episode_columns",
+     "name": "Episode Columns",
+     "description": "Episode columns that may appear in the seed. A column holds ten consecutive episodes.\n00-09 to 90-99 are the original N v1.4 episodes, 100-109 to 190-199 the NReality columns.",
+     "random": false,
+     "type": "set",
+     "default": [
+      "00-09",
+      "10-19",
+      "20-29",
+      "30-39",
+      "40-49",
+      "50-59",
+      "60-69",
+      "70-79",
+      "80-89",
+      "90-99",
+      "100-109",
+      "110-119",
+      "120-129",
+      "130-139",
+      "140-149",
+      "150-159",
+      "160-169",
+      "170-179",
+      "180-189",
+      "190-199"
+     ],
+     "keys": [
+      "00-09",
+      "10-19",
+      "20-29",
+      "30-39",
+      "40-49",
+      "50-59",
+      "60-69",
+      "70-79",
+      "80-89",
+      "90-99",
+      "100-109",
+      "110-119",
+      "120-129",
+      "130-139",
+      "140-149",
+      "150-159",
+      "160-169",
+      "170-179",
+      "180-189",
+      "190-199"
+     ]
+    },
+    {
+     "key": "max_episode_row",
+     "name": "Max Episode Row",
+     "description": "Difficulty filter: only episodes whose last digit is at most this value are used.\nWithin a column, episodes get harder from x0 to x9. 9 allows every episode.",
+     "random": true,
+     "type": "range",
+     "default": 4,
+     "min": 0,
+     "max": 9,
+     "named": {}
+    },
+    {
+     "key": "episode_count",
+     "name": "Episode Count",
+     "description": "Number of episodes in the seed. Every episode adds five levels, each one a check.\nLimited by the episodes left after the column and row filters.",
+     "random": true,
+     "type": "range",
+     "default": 20,
+     "min": 1,
+     "max": 200,
+     "named": {}
+    },
+    {
+     "key": "starting_episodes",
+     "name": "Starting Episodes",
+     "description": "Number of episodes unlocked from the start. The easiest episodes of the seed are preferred.",
+     "random": true,
+     "type": "range",
+     "default": 3,
+     "min": 1,
+     "max": 10,
+     "named": {}
+    }
+   ]
+  },
+  {
+   "name": "Goal",
+   "options": [
+    {
+     "key": "goal_percentage",
+     "name": "Goal Percentage",
+     "description": "Percentage of the seed's episodes that must be fully completed (all five levels) to win.",
+     "random": true,
+     "type": "range",
+     "default": 50,
+     "min": 1,
+     "max": 100,
+     "named": {}
+    }
+   ]
+  },
+  {
+   "name": "Multiplayer",
+   "options": [
+    {
+     "key": "death_link",
+     "name": "Death Link",
+     "description": "When you die, everyone who enabled death link dies. Of course, the reverse is true too.",
+     "random": true,
+     "type": "toggle",
+     "default": false
+    },
+    {
+     "key": "death_link_amnesty",
+     "name": "Death Link Amnesty",
+     "description": "Only every Nth death of yours is sent as a DeathLink. 1 sends every death.\nDeathLinks from other players always kill your ninja.",
+     "random": true,
+     "type": "range",
+     "default": 1,
+     "min": 1,
+     "max": 20,
+     "named": {}
+    },
+    {
+     "key": "death_link_cooldown",
+     "name": "Death Link Cooldown",
+     "description": "Seconds after sending a DeathLink in which your deaths are neither sent nor counted. 0 turns it off.\nDeathLinks from other players always kill your ninja.",
+     "random": true,
+     "type": "range",
+     "default": 120,
+     "min": 0,
+     "max": 600,
+     "named": {}
+    }
+   ]
+  }
+ ]
+}

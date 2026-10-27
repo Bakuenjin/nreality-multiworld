@@ -53,7 +53,7 @@ MW.report = function() {
     if (!MW.active || !MW.allowed[ep] || APP_DEBUG_MODE_ACTIVE || APP_IS_PRACTISE || APP_IS_CHEATER) {
         return;
     }
-    if (ep < 0 || ep >= 200 || level < 0 || level >= 5) { return; }
+    if (ep < 0 || ep >= 200 || level < 0 || level >= 5 || MW.done[ep * 5 + level]) { return; }
     MW.pending[ep * 5 + level] = true;
     MW.saved.data.pending = MW.pending;
     MW.saved.flush();
@@ -227,28 +227,38 @@ MW.poll = function() {
         if (!ok || this.session != MW.session) { return; }
         MW.ready = true;
         var previous = MW.unlockText + "|" + MW.checkedText + "|" + MW.episodesText;
-        MW.unlockText = this.unlocked;
-        MW.checkedText = this.checked;
-        MW.episodesText = this.episodes;
-        MW.allowed = new Object();
-        var list = this.unlocked.split(",");
-        for (var i = 0; i < list.length; i++) {
-            if (list[i] != "") { MW.allowed[Number(list[i])] = true; }
+        // This runs inside a game frame once per second: rebuild only what changed, save only on change.
+        if (this.unlocked != MW.unlockText) {
+            MW.unlockText = this.unlocked;
+            MW.allowed = new Object();
+            var list = this.unlocked.split(",");
+            for (var i = 0; i < list.length; i++) {
+                if (list[i] != "") { MW.allowed[Number(list[i])] = true; }
+            }
         }
-        MW.seed = new Object();
-        MW.seedSize = 0;
-        var eps = this.episodes.split(",");
-        for (var k = 0; k < eps.length; k++) {
-            if (eps[k] != "") { MW.seed[Number(eps[k])] = true; MW.seedSize++; }
+        if (this.episodes != MW.episodesText) {
+            MW.episodesText = this.episodes;
+            MW.seed = new Object();
+            MW.seedSize = 0;
+            var eps = this.episodes.split(",");
+            for (var k = 0; k < eps.length; k++) {
+                if (eps[k] != "") { MW.seed[Number(eps[k])] = true; MW.seedSize++; }
+            }
         }
-        MW.done = new Object();
-        var ack = this.checked.split(",");
-        for (var j = 0; j < ack.length; j++) {
-            if (ack[j] != "") { MW.done[Number(ack[j])] = true; }
-            delete MW.pending[ack[j]];
+        if (this.checked != MW.checkedText) {
+            MW.checkedText = this.checked;
+            MW.done = new Object();
+            var confirmed = false;
+            var ack = this.checked.split(",");
+            for (var j = 0; j < ack.length; j++) {
+                if (ack[j] != "") { MW.done[Number(ack[j])] = true; }
+                if (MW.pending[ack[j]] != undefined) { delete MW.pending[ack[j]]; confirmed = true; }
+            }
+            if (confirmed) {
+                MW.saved.data.pending = MW.pending;
+                MW.saved.flush();
+            }
         }
-        MW.saved.data.pending = MW.pending;
-        MW.saved.flush();
         if (previous != MW.unlockText + "|" + MW.checkedText + "|" + MW.episodesText) { MW.refreshPlayMenu(); }
         if (Number(this.deathsAck) > 0) { MW.deaths = Math.max(0, MW.deaths - Number(this.deathsAck)); }
         if (this.kill == "1") { MW.receiveDeath(); }

@@ -152,3 +152,30 @@ class TestDeathLink(ClientTestBase):
         self.ctx.on_deathlink({"time": time.time(), "source": "Friend"})
         self.ctx.kill_requested -= 10
         self.assertEqual(self.sync("")["kill"], 0)
+
+    def die(self, deaths: int = 1) -> None:
+        self.ctx.sync_game({"session": self.ctx.session, "deaths": str(deaths), "cause": "a mine"})
+
+    async def test_amnesty_sends_every_nth_death(self) -> None:
+        self.ctx.death_link_amnesty = 3
+        self.die()
+        self.die()
+        await asyncio.sleep(0.05)
+        self.ctx.send_death.assert_not_awaited()
+        self.die()
+        await asyncio.sleep(0.05)
+        self.ctx.send_death.assert_awaited_once_with("Ninja was killed by a mine.")
+
+    async def test_cooldown_limits_own_deaths_but_never_received_ones(self) -> None:
+        self.ctx.death_link_cooldown = 120
+        self.die()
+        self.die()  # within the cooldown: neither sent nor counted
+        await asyncio.sleep(0.05)
+        self.ctx.send_death.assert_awaited_once()
+        self.ctx.on_deathlink({"time": time.time(), "source": "Friend"})
+        self.assertEqual(self.sync("")["kill"], 1)
+        self.ctx.death_link_sent -= 121
+        self.die()
+        await asyncio.sleep(0.05)
+        self.assertEqual(self.ctx.send_death.await_count, 2)
+

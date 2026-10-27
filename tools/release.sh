@@ -1,5 +1,5 @@
 #!/bin/sh
-# Release assets in dist/: nreality.apworld and the NReality.yaml options template.
+# Release assets in dist/ (nreality.apworld, NReality.yaml template) and the options page data in docs/.
 set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOG="$ROOT/.local/release.log"
@@ -11,4 +11,5 @@ cp "$ROOT/.local/vendor/MultiworldGG/build/apworlds/nreality.apworld" "$ROOT/dis
 rm -rf "$ROOT/.local/templates"
 run sh "$ROOT/tools/mwgg.sh" -c 'import sys; from Options import generate_yaml_templates; generate_yaml_templates(sys.argv[1])' "$ROOT/.local/templates"
 cp "$ROOT/.local/templates/NReality.yaml" "$ROOT/dist/"
+run sh "$ROOT/tools/mwgg.sh" "$ROOT/tools/export_options.py"  # options page (docs/), commit with the release
 ls -l "$ROOT/dist"
