@@ -176,6 +176,24 @@
      "named": {}
     },
     {
+     "key": "death_link_amnesty_scope",
+     "name": "Death Link Amnesty Scope",
+     "description": "Where the Death Link Amnesty count is kept.\nAcross Levels: your deaths add up wherever they happen until one is sent.\nPer Level: every level starts with the full amnesty. The count starts over when you finish a level\nor die in a different one.",
+     "random": true,
+     "type": "choice",
+     "default": "across_levels",
+     "choices": [
+      {
+       "value": "across_levels",
+       "label": "Across Levels"
+      },
+      {
+       "value": "per_level",
+       "label": "Per Level"
+      }
+     ]
+    },
+    {
      "key": "death_link_cooldown",
      "name": "Death Link Cooldown",
      "description": "Seconds after sending a DeathLink in which your deaths are neither sent nor counted. 0 turns it off.\nDeathLinks from other players always kill your ninja.",

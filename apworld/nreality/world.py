@@ -117,5 +117,6 @@ class NRealityWorld(World):
         return dict(episodes=self.episodes, goal_episodes=self.goal_episodes,
                     death_link=bool(self.options.death_link),
                     death_link_amnesty=self.options.death_link_amnesty.value,
+                    death_link_amnesty_scope=self.options.death_link_amnesty_scope.current_key,
                     death_link_cooldown=self.options.death_link_cooldown.value,
                     world_version=self.world_version.as_simple_string())
