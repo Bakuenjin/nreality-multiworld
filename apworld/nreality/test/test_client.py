@@ -60,6 +60,14 @@ class TestClientSync(ClientTestBase):
         self.sync("990")
         self.assertIn(data.level_location_id(198, 0), self.ctx.locations_checked)
 
+    async def test_received_bonus_gold_is_counted_for_the_game(self) -> None:
+        self.assertEqual(self.sync("")["bonusGold"], 0)
+        for _ in range(2):
+            self.ctx.items_received.append(NetworkItem(data.FILLER_ITEM_ID, -2, 0, 0))
+        self.ctx.on_package("ReceivedItems", {})
+        self.assertEqual(self.sync("")["bonusGold"], 2)
+        self.assertEqual(self.ctx.unlocked, {199})
+
     async def test_unlocks_survive_connection_loss_but_not_slot_change(self) -> None:
         self.ctx.reset_server_state()
         self.assertEqual(self.sync("996")["unlocked"], "199")
@@ -153,8 +161,9 @@ class TestDeathLink(ClientTestBase):
         self.ctx.kill_requested -= 10
         self.assertEqual(self.sync("")["kill"], 0)
 
-    def die(self, deaths: int = 1) -> None:
-        self.ctx.sync_game({"session": self.ctx.session, "deaths": str(deaths), "cause": "a mine"})
+    def die(self, deaths: int = 1, scope: str = "995/1") -> None:
+        self.ctx.sync_game({"session": self.ctx.session, "deaths": str(deaths), "cause": "a mine",
+                            "deathScope": scope})
 
     async def test_amnesty_sends_every_nth_death(self) -> None:
         self.ctx.death_link_amnesty = 3
@@ -165,6 +174,26 @@ class TestDeathLink(ClientTestBase):
         self.die()
         await asyncio.sleep(0.05)
         self.ctx.send_death.assert_awaited_once_with("Ninja was killed by a mine.")
+
+    async def test_amnesty_across_levels_keeps_counting_in_a_new_level(self) -> None:
+        self.ctx.death_link_amnesty = 3
+        self.die(2, "995/1")
+        self.die(1, "996/2")
+        await asyncio.sleep(0.05)
+        self.ctx.send_death.assert_awaited_once()
+
+    async def test_amnesty_per_level_starts_over_in_a_new_level_or_after_a_pass(self) -> None:
+        self.ctx.on_package("Connected", {"slot_data": {"episodes": [198, 199], "goal_episodes": 1, "death_link": True,
+                                                        "death_link_amnesty": 3,
+                                                        "death_link_amnesty_scope": "per_level"}})
+        self.die(2, "995/1")
+        self.die(2, "996/2")  # level passed: the next level starts with the full amnesty
+        self.die(1, "995/2")  # died in a different level
+        await asyncio.sleep(0.05)
+        self.ctx.send_death.assert_not_awaited()
+        self.die(2, "995/2")
+        await asyncio.sleep(0.05)
+        self.ctx.send_death.assert_awaited_once()
 
     async def test_cooldown_limits_own_deaths_but_never_received_ones(self) -> None:
         self.ctx.death_link_cooldown = 120

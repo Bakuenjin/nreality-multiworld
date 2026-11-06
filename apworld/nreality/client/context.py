@@ -41,8 +41,10 @@ class NRealityContext(CommonContext):
         self.kill_requested = 0.0  # time of the last DeathLink from another world
         # Limits for own deaths only (slot_data); seeds without them send every death.
         self.death_link_amnesty = 1
+        self.death_link_per_level = False
         self.death_link_cooldown = 0
         self.deaths_counted = 0
+        self.death_scope = ""  # level and pass stamp of the last counted death (per-level amnesty)
         self.death_link_sent = 0.0
         self.console = WebConsole(self)
         self.web_commands = self.command_processor(self)
@@ -75,6 +77,7 @@ class NRealityContext(CommonContext):
             self.goal_episodes = args["slot_data"]["goal_episodes"]
             asyncio.create_task(self.update_death_link(bool(args["slot_data"].get("death_link"))))
             self.death_link_amnesty = args["slot_data"].get("death_link_amnesty", 1)
+            self.death_link_per_level = args["slot_data"].get("death_link_amnesty_scope") == "per_level"
             self.death_link_cooldown = args["slot_data"].get("death_link_cooldown", 0)
             logger.info(f"Game page: {self.game_url}")
         if cmd in ("Connected", "ReceivedItems"):
@@ -94,15 +97,23 @@ class NRealityContext(CommonContext):
         super().on_deathlink(data)
         self.kill_requested = time.time()
 
-    def count_deaths(self, deaths: int, cause: str) -> None:
-        """Sends own deaths as DeathLink, limited by cooldown and amnesty. Received DeathLinks are never limited."""
+    def count_deaths(self, deaths: int, cause: str, scope: str = "") -> None:
+        """Sends own deaths as DeathLink, limited by cooldown and amnesty. Received DeathLinks are never limited.
+
+        With per-level amnesty the count starts over when the game reports a death in a new scope:
+        a different level, or any level after one was passed.
+        """
         left = self.death_link_sent + self.death_link_cooldown - time.time()
         if left > 0:
             logger.info(f"DeathLink on cooldown ({math.ceil(left)} s left)")
             return
+        if self.death_link_per_level and scope != self.death_scope:
+            self.deaths_counted = 0
+        self.death_scope = scope
         self.deaths_counted += deaths
         if self.deaths_counted < self.death_link_amnesty:
-            logger.info(f"DeathLink: {self.deaths_counted}/{self.death_link_amnesty} deaths")
+            where = " in this level" if self.death_link_per_level else ""
+            logger.info(f"DeathLink: {self.deaths_counted}/{self.death_link_amnesty} deaths{where}")
             return
         self.deaths_counted = 0
         self.death_link_sent = time.time()
@@ -145,14 +156,17 @@ class NRealityContext(CommonContext):
         self.link.seen(values)
         deaths = max(0, int(values.get("deaths") or 0))
         if deaths and "DeathLink" in self.tags:
-            self.count_deaths(deaths, (values.get("cause") or "something")[:100])
+            self.count_deaths(deaths, (values.get("cause") or "something")[:100],
+                              (values.get("deathScope") or "")[:100])
         # Deaths from other worlds older than a few seconds are dropped instead of hitting a later run.
         kill = time.time() - self.kill_requested < 5
         self.kill_requested = 0.0
         confirmed = {data.location_id_to_check(loc) for loc in self.checked_locations}
+        # The game adds the time of each Bonus Gold once and remembers how many it has used.
+        bonus_gold = sum(item.item == data.FILLER_ITEM_ID for item in self.items_received)
         return dict(session=self.session, unlocked=bridge.join(self.unlocked),
                     checked=bridge.join(confirmed | dropped), episodes=bridge.join(self.episodes),
-                    deathsAck=deaths, kill=int(kill))
+                    deathsAck=deaths, kill=int(kill), bonusGold=bonus_gold)
 
     def web_command(self, text: str) -> None:
         """Input line of the page: answers a pending prompt, runs /commands, sends chat and !commands."""

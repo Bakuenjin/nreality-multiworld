@@ -15,7 +15,9 @@ never send checks.
 ## Which items are there?
 
 - `Episode 00` to `Episode 199`: unlock the matching episode (progression).
-- `Bonus Gold`: filler without a gameplay effect.
+- `Bonus Gold`: adds the time of one gold piece (2 seconds) to an episode run, once. Unlike collected gold it is
+  not lost when you die: it also raises the time the level restarts with. Received outside a run, it waits for the
+  next one.
 
 ## What is the goal?
 
@@ -39,4 +41,6 @@ Suicide with the kill key never sends a DeathLink. Practise mode, demos and repl
 
 Since dying is part of playing N, two options limit only the deaths you send:
 `death_link_amnesty` sends only every Nth death, and `death_link_cooldown` (default 120 seconds) ignores your
-deaths for a while after sending one. DeathLinks from other players always kill your ninja.
+deaths for a while after sending one. With `death_link_amnesty_scope: per_level`, every level starts with the full
+amnesty: the count starts over when you finish a level or die in a different one. DeathLinks from other players
+always kill your ninja.

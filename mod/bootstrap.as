@@ -62,17 +62,24 @@ MW.report = function() {
 // DeathLink: real deaths in an episode run are reported, suicides (kill key) never.
 MW.deaths = 0;
 MW.deathCause = "";
+// Where the last death happened, for per-level amnesty: the level plus a stamp that changes with every passed level.
+MW.deathScope = "";
+MW.passStamp = new Date().getTime();
 MW.linkKill = false;
 MW.linkKiller = new Object();
 MW.linkKiller.name = "DeathLink";
 MW.killPlayer = NinjaGame.prototype.KillPlayer;
 NinjaGame.prototype.KillPlayer = function(killtype, fx, fy, px, py, obj) {
     var wasAlive = !player.isDead;
+    // The exit is tested before fall damage in the same tick, so a level can be passed by a ninja that then dies.
+    // The level counts, and the passed event has already left App_Tick_RunningGame: such deaths are not reported.
+    var running = TickApp == App_Tick_RunningGame;
     MW.killPlayer.call(this, killtype, fx, fy, px, py, obj);
     if (!wasAlive || !player.isDead) { return; }
     if (MW.linkKill) { MW.linkKill = false; return; }
-    if (!MW.active || obj == undefined || APP_VOLUNTARY_SUICIDE || APP_IS_PRACTISE || APP_DEBUG_DEATH) { return; }
+    if (!MW.active || !running || obj == undefined || APP_VOLUNTARY_SUICIDE || APP_IS_PRACTISE || APP_DEBUG_DEATH) { return; }
     MW.deaths++;
+    MW.deathScope = (gamedata.curEpisode * 5 + gamedata.curLevel) + "/" + MW.passStamp;
     if (obj != player) { MW.deathCause = "a " + obj.name; }
     else if (killtype == KILLTYPE_FALL && game.playerCurTime <= 0) { MW.deathCause = "running out of time"; }
     else if (killtype == KILLTYPE_FALL) { MW.deathCause = "fall damage"; }
@@ -84,8 +91,25 @@ MW.receiveDeath = function() {
     MW.linkKill = true;
     game.KillPlayer(KILLTYPE_ELECTRIC, 0, -6, player.pos.x, player.pos.y, MW.linkKiller);
 };
+// Bonus Gold from the multiworld: each item adds the time of one gold piece once, to the current episode run.
+// Unlike collected gold it also raises the level's start time, so a retry keeps it. Items received outside a run
+// wait for the next one; how many are used up is kept per session like the pending checks.
+MW.bonusTotal = 0;
+MW.bonusSpent = 0;
+MW.applyBonus = function() {
+    var count = MW.bonusTotal - MW.bonusSpent;
+    if (count <= 0 || !MW.active || APP_IS_PRACTISE) { return; }
+    if (TickApp != App_Tick_PreLevelPause && TickApp != App_Tick_RunningGame) { return; }
+    game.playerCurTime += count * game.playerBonusTime;
+    game.playerStartingTime += count * game.playerBonusTime;
+    _global.goldSnd.gotoAndPlay("COLLECTED");
+    MW.bonusSpent = MW.bonusTotal;
+    MW.saved.data.bonusSpent = MW.bonusSpent;
+    MW.saved.flush();
+};
 MW.normalPassed = App_LevelPassedEvent_Normal;
 App_LevelPassedEvent_Normal = function() {
+    MW.passStamp = new Date().getTime();
     MW.report();
     MW.normalPassed();
 };
@@ -222,6 +246,7 @@ MW.poll = function() {
     send.mapCount = gamedata.episodeList.length;
     send.deaths = MW.deaths;
     send.cause = MW.deathCause;
+    send.deathScope = MW.deathScope;
     receive.onLoad = function(ok) {
         MW.busy = false;
         if (!ok || this.session != MW.session) { return; }
@@ -262,6 +287,8 @@ MW.poll = function() {
         if (previous != MW.unlockText + "|" + MW.checkedText + "|" + MW.episodesText) { MW.refreshPlayMenu(); }
         if (Number(this.deathsAck) > 0) { MW.deaths = Math.max(0, MW.deaths - Number(this.deathsAck)); }
         if (this.kill == "1") { MW.receiveDeath(); }
+        if (Number(this.bonusGold) > MW.bonusTotal) { MW.bonusTotal = Number(this.bonusGold); }
+        MW.applyBonus();
     };
     send.sendAndLoad("/api/sync", receive, "POST");
 };
@@ -269,6 +296,7 @@ InitApp();
 if (MW.session != undefined && MW.session != "") {
     MW.saved = SharedObject.getLocal("n_multiworld_pending_" + MW.session, "/");
     if (MW.saved.data.pending != undefined) { MW.pending = MW.saved.data.pending; }
+    if (MW.saved.data.bonusSpent != undefined) { MW.bonusSpent = MW.saved.data.bonusSpent; }
     setInterval(MW.poll, 1000);
     MW.poll();
 }

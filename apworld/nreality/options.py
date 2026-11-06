@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from Options import DeathLink, OptionGroup, OptionSet, PerGameCommonOptions, Range
+from Options import Choice, DeathLink, OptionGroup, OptionSet, PerGameCommonOptions, Range
 
 from .data import COLUMN_NAMES
 
@@ -80,6 +80,20 @@ class DeathLinkAmnesty(Range):
     default = 1
 
 
+class DeathLinkAmnestyScope(Choice):
+    """
+    Where the Death Link Amnesty count is kept.
+    Across Levels: your deaths add up wherever they happen until one is sent.
+    Per Level: every level starts with the full amnesty. The count starts over when you finish a level
+    or die in a different one.
+    """
+
+    display_name = "Death Link Amnesty Scope"
+    option_across_levels = 0
+    option_per_level = 1
+    default = 0
+
+
 class DeathLinkCooldown(Range):
     """
     Seconds after sending a DeathLink in which your deaths are neither sent nor counted. 0 turns it off.
@@ -101,11 +115,12 @@ class NRealityOptions(PerGameCommonOptions):
     goal_percentage: GoalPercentage
     death_link: DeathLink
     death_link_amnesty: DeathLinkAmnesty
+    death_link_amnesty_scope: DeathLinkAmnestyScope
     death_link_cooldown: DeathLinkCooldown
 
 
 option_groups = [
     OptionGroup("Episodes", [EpisodeColumns, MaxEpisodeRow, EpisodeCount, StartingEpisodes]),
     OptionGroup("Goal", [GoalPercentage]),
-    OptionGroup("Multiplayer", [DeathLink, DeathLinkAmnesty, DeathLinkCooldown]),
+    OptionGroup("Multiplayer", [DeathLink, DeathLinkAmnesty, DeathLinkAmnestyScope, DeathLinkCooldown]),
 ]

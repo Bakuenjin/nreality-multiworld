@@ -15,7 +15,9 @@ senden keine Checks.
 ## Welche Items gibt es?
 
 - `Episode 00` bis `Episode 199`: schalten die jeweilige Episode frei (Progression).
-- `Bonus Gold`: Füll-Item ohne spielerische Wirkung.
+- `Bonus Gold`: gibt einem Episodendurchlauf einmalig die Zeit eines Goldstücks (2 Sekunden). Anders als
+  eingesammeltes Gold geht sie beim Tod nicht verloren, weil sie auch die Startzeit des Levels erhöht. Außerhalb
+  eines Durchlaufs erhalten, wartet sie auf den nächsten.
 
 ## Was ist das Ziel?
 
@@ -39,4 +41,5 @@ Selbstmord mit der Kill-Taste sendet nie einen DeathLink. Übungsmodus, Demos un
 
 Weil Sterben in N dazugehört, begrenzen zwei Optionen nur die Tode, die du sendest: `death_link_amnesty` sendet nur
 jeden N-ten Tod, `death_link_cooldown` (Standard 120 Sekunden) ignoriert deine Tode eine Weile nach einem gesendeten.
-DeathLinks anderer Spieler töten deinen Ninja immer.
+Mit `death_link_amnesty_scope: per_level` beginnt jedes Level mit der vollen Amnestie: Die Zählung startet neu, sobald
+du ein Level abschließt oder in einem anderen stirbst. DeathLinks anderer Spieler töten deinen Ninja immer.
