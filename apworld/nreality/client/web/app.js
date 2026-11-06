@@ -18,9 +18,9 @@ function showPanel(files) {
   if (key === panelKey) return;
   panelKey = key;
   const panel = $('panel');
-  if (files.ready) { panel.innerHTML = '<p>Nicht verbunden · <code>/connect adresse</code></p>'; return; }
-  if (busy) { panel.innerHTML = '<p>Wird eingerichtet …</p>'; return; }
-  panel.innerHTML = '<label class="file"><input type="file" id="archive" accept=".zip">NReality6g2.zip auswählen</label>'
+  if (files.ready) { panel.innerHTML = '<p>Not connected · <code>/connect address</code></p>'; return; }
+  if (busy) { panel.innerHTML = '<p>Setting up …</p>'; return; }
+  panel.innerHTML = '<label class="file"><input type="file" id="archive" accept=".zip">Select NReality6g2.zip</label>'
     + '<p class="dim">Download: <a href="https://n.infunity.com/" target="_blank" rel="noopener">n.infunity.com</a></p>';
   if (message) {
     const error = document.createElement('p');
@@ -54,12 +54,12 @@ function render(state) {
   const local = state.mode === 'local';
   $('local').hidden = !local;
   const progress = `${state.checks.length}/${state.episodes.length * 5} Checks`;
-  const goal = state.goal ? (state.goal.done ? 'Ziel erreicht' : `Ziel ${state.goal.completed}/${state.goal.required}`) : '';
-  $('status').textContent = local ? `Testmodus · ${progress}`
-    : !state.session ? '' : [state.server.connected ? state.server.slot : 'Server getrennt', goal, progress].join(' · ');
+  const goal = state.goal ? (state.goal.done ? 'Goal reached' : `Goal ${state.goal.completed}/${state.goal.required}`) : '';
+  $('status').textContent = local ? `Test mode · ${progress}`
+    : !state.session ? '' : [state.server.connected ? state.server.slot : 'Disconnected', goal, progress].join(' · ');
   const input = $('input');
   input.disabled = $('command').querySelector('button').disabled = local;
-  input.placeholder = local ? 'Nur mit MultiworldGG' : state.inputRequested ? 'Eingabe angefordert …' : 'Chat, !hint, /connect …';
+  input.placeholder = local ? 'MultiworldGG only' : state.inputRequested ? 'Input requested …' : 'Chat, !hint, /connect …';
   input.classList.toggle('requested', !!state.inputRequested);
   if (state.logId > lastLog) loadLog();
 }
@@ -68,7 +68,7 @@ function entryElement(entry) {
   const div = document.createElement('div');
   div.className = `entry ${entry.kind}${entry.relevant ? '' : ' foreign'}`;
   const time = document.createElement('time');
-  time.textContent = new Date(entry.time * 1000).toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+  time.textContent = new Date(entry.time * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
   div.append(time);
   for (const part of entry.parts) {
     const span = document.createElement('span');
@@ -119,13 +119,13 @@ $('input').addEventListener('keydown', event => {
   historyPos = Math.max(0, Math.min(inputHistory.length, historyPos + (event.key === 'ArrowUp' ? -1 : 1)));
   $('input').value = inputHistory[historyPos] ?? '';
 });
-$('others').addEventListener('change', event => $('log').classList.toggle('others', event.target.checked));
+$('others').addEventListener('change', event => $('log').classList.toggle('show-others', event.target.checked));
 $('local').addEventListener('submit', async event => {
   event.preventDefault(); const value = Number($('item').value);
   try { render(await post('/api/item', {episode:value, receipt:`local-episode-${value}`})); } catch(error) { $('status').textContent = error.message; }
 });
 async function refresh() {
   try { const response = await fetch('/api/state'); if (!response.ok) throw new Error(); render(await response.json()); }
-  catch { $('status').textContent = 'Client nicht erreichbar'; }
+  catch { $('status').textContent = 'Client not reachable'; }
 }
 refresh();setInterval(refresh,1000);
