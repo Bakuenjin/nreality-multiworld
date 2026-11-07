@@ -5,6 +5,7 @@ from test.general import gen_steps, setup_multiworld
 from worlds.AutoWorld import call_all
 
 from .. import data
+from ..options import option_presets
 from ..world import NRealityWorld
 
 
@@ -76,3 +77,14 @@ class TestFiltersLimitCount(NRealityTestBase):
         self.assertEqual(sorted(self.world.starting), [0, 1])
         self.assertEqual(self.world.goal_episodes, 2)
         self.assertEqual(self.world.fill_slot_data()["episodes"], [0, 1])
+
+
+class TestPresets(unittest.TestCase):
+    def test_presets_generate_with_their_options(self) -> None:
+        for name, preset in option_presets.items():
+            with self.subTest(name):
+                world = setup_multiworld(NRealityWorld, options=preset).worlds[1]
+                for key, value in preset.items():
+                    option = getattr(world.options, key)
+                    self.assertEqual(option.current_key if isinstance(value, str) else option.value,
+                                     set(value) if isinstance(value, list) else value)

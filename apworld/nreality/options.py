@@ -124,3 +124,11 @@ option_groups = [
     OptionGroup("Goal", [GoalPercentage]),
     OptionGroup("Multiplayer", [DeathLink, DeathLinkAmnesty, DeathLinkAmnestyScope, DeathLinkCooldown]),
 ]
+
+# Ready-made option sets for the player options page on multiworld.gg.
+option_presets = {
+    "Original N Only": {"episode_columns": COLUMN_NAMES[:10]},
+    "NReality Only": {"episode_columns": COLUMN_NAMES[10:]},
+    "Quick": {"episode_count": 10},
+    "Forgiving DeathLink": {"death_link": True, "death_link_amnesty": 3, "death_link_amnesty_scope": "per_level"},
+}

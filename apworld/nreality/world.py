@@ -8,7 +8,7 @@ from rule_builder.rules import Has, HasFromList
 from worlds.AutoWorld import WebWorld, World
 
 from . import data
-from .options import NRealityOptions, option_groups
+from .options import NRealityOptions, option_groups, option_presets
 
 
 class NRealityItem(Item):
@@ -30,6 +30,8 @@ class NRealityWebWorld(WebWorld):
                  "German", "setup_de.md", "setup/de", ["NReality Multiworld"]),
     ]
     option_groups = option_groups
+    options_presets = option_presets
+    bug_report_page = "https://github.com/Bakuenjin/nreality-multiworld/issues"
 
 
 class NRealityWorld(World):

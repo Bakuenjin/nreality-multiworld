@@ -8,4 +8,5 @@ def run_client(*args: str) -> None:
 
 
 components.append(Component("NReality Client", func=run_client, game_name="NReality",
-                            component_type=Type.CLIENT, supports_uri=True))
+                            component_type=Type.CLIENT, supports_uri=True,
+                            description="Play NReality in your browser, connected to MultiworldGG."))
