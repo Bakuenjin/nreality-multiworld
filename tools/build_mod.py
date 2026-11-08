@@ -4,21 +4,21 @@ The compiled bootstrap tag is stored in the apworld so that players can build wi
 """
 import argparse
 import hashlib
-import importlib.util
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CLIENT = ROOT / 'apworld/nreality/client'
 
-_spec = importlib.util.spec_from_file_location('nreality_patcher', CLIENT / 'patcher.py')
-patcher = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(patcher)
-decode, encode, tags = patcher.decode, patcher.encode, patcher.tags
+# The patcher needs only the standard library; import it without the apworld package (which needs MultiworldGG).
+sys.path.insert(0, str(ROOT / 'apworld' / 'nreality'))
+from client import patcher  # noqa: E402
 
 
 def load_originals():
+    """The game files from originals/NReality6g2.zip, or else from .local/original (see tools/extract.py)."""
     archive = ROOT / 'originals/NReality6g2.zip'
     if archive.is_file():
         return patcher.read_archive(archive)
@@ -28,8 +28,9 @@ def load_originals():
 
 
 def compile_bootstrap(originals, source, output):
+    """Compiles the mod with JPEXS against the base game and returns the resulting DoAction tag."""
     output.mkdir(parents=True, exist_ok=True)
-    (output / 'compiler-input.swf').write_bytes(encode(patcher.base_game(originals)))
+    (output / 'compiler-input.swf').write_bytes(patcher.compress_swf(patcher.base_game(originals)))
     imports = output / 'imports' / 'scripts' / 'frame_1'
     imports.mkdir(parents=True, exist_ok=True)
     (imports / 'DoAction_144.as').write_text(source)
@@ -37,27 +38,39 @@ def compile_bootstrap(originals, source, output):
         '-jar', str(ROOT / '.local/tools/ffdec/ffdec.jar'), '-importScript',
         str(output / 'compiler-input.swf'), str(output / 'compiled.swf'),
         str(output / 'imports')], check=True)
-    compiled = decode((output / 'compiled.swf').read_bytes())
-    _, start, _, end = [tag for tag in tags(compiled) if tag[0] == patcher.DO_ACTION][-1]
+    compiled = patcher.decompress_swf((output / 'compiled.swf').read_bytes())
+    _, start, _, end = [tag for tag in patcher.iter_tags(compiled) if tag[0] == patcher.DO_ACTION][-1]
     tag = compiled[start:end]
     assert b'/api/sync' in tag, 'Bootstrap was not compiled'
     return tag
 
 
+def with_test_levels(source):
+    """Replaces the five levels of episode 199 with a trivial one for tests and the tests/e2e seeds.
+
+    A flat floor with the exit to the right of the start and a mine to its left (DeathLink test).
+    """
+    tiles = ''.join('1' if row == 22 else '0' for col in range(31) for row in range(23))
+    objects = '5^120,540!11^180,540,120,540!12^60,540'
+    hook = ('MW.base.BuildGameDataWithoutTestLevels = NinjaData.prototype.BuildGameData;\n'
+            'NinjaData.prototype.BuildGameData = function() {\n'
+            '    MW.base.BuildGameDataWithoutTestLevels.call(this);\n'
+            f'    var level = new LevelData("SMOKE TEST", "{tiles}|{objects}");\n'
+            '    for (var i = 0; i < 5; i++) { this.episodeList[199].levelList[i] = level; }\n'
+            '};\n')
+    assert source.count('\nInitApp();') == 1, 'mod/bootstrap.as must start the game with InitApp(); once'
+    return source.replace('\nInitApp();', '\n' + hook + 'InitApp();')
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--fixture', action='store_true')
+    parser.add_argument('--fixture', action='store_true', help='Build the test levels into episode 199')
     args = parser.parse_args()
     output = ROOT / '.local/mod'
     originals = load_originals()
     source = (ROOT / 'mod/bootstrap.as').read_text()
     if args.fixture:
-        tiles = ''.join('1' if row == 22 else '0' for col in range(31) for row in range(23))
-        # Exit to the right of the start, a mine to the left (DeathLink test).
-        fixture = 'this.episodeList[199].levelList[0] = new LevelData("SMOKE TEST", "' + tiles + '|5^120,540!11^180,540,120,540!12^60,540");'
-        source = source.replace('        _root["vCol" + col].call(this);\n    }', '        _root["vCol" + col].call(this);\n    }\n    ' + fixture)
-        copies = ''.join(f'\n    this.episodeList[199].levelList[{level}] = this.episodeList[199].levelList[0];' for level in range(1, 5))
-        source = source.replace(fixture, fixture + copies)
+        source = with_test_levels(source)
     tag = compile_bootstrap(originals, source, output)
     if not args.fixture:
         (CLIENT / 'bootstrap.bin').write_bytes(tag)

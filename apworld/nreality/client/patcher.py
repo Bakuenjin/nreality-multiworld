@@ -26,7 +26,7 @@ SAVE_NAME = (b'n_v14b_userdata', b'n_mw01_userdata')
 DO_ACTION = 12
 
 
-def decode(raw):
+def decompress_swf(raw: bytes) -> bytes:
     if raw[:3] != b'CWS':
         raise ValueError('Not a compressed SWF')
     data = b'FWS' + raw[3:8] + zlib.decompress(raw[8:])
@@ -35,12 +35,13 @@ def decode(raw):
     return data
 
 
-def encode(data):
+def compress_swf(data: bytes) -> bytes:
     return b'CWS' + data[3:4] + struct.pack('<I', len(data)) + zlib.compress(data[8:])
 
 
-def tags(data):
+def iter_tags(data: bytes):
     """Yields (code, tag start, body start, end) for every top-level tag of an uncompressed SWF."""
+    # Header: signature, version and length (8 bytes), the frame rectangle (variable bits), frame rate and count.
     pos = 8 + (5 + 4 * (data[8] >> 3) + 7) // 8 + 4
     while pos < len(data):
         start = pos
@@ -57,7 +58,7 @@ def tags(data):
         pos = end
 
 
-def verify(originals):
+def verify(originals: dict[str, bytes]) -> None:
     for name, digest in ORIGINALS.items():
         if name not in originals:
             raise ValueError(f'{name} is missing')
@@ -65,7 +66,7 @@ def verify(originals):
             raise ValueError(f'{name} is not the expected NReality 6g2 file')
 
 
-def read_archive(archive):
+def read_archive(archive) -> dict[str, bytes]:
     """Reads and verifies the needed files from NReality6g2.zip (a path or a file object)."""
     try:
         with zipfile.ZipFile(archive) as zf:
@@ -77,25 +78,25 @@ def read_archive(archive):
     return originals
 
 
-def base_game(originals):
-    """The decoded base game with the separate save name; JPEXS compiles the bootstrap against this."""
-    base = decode(originals['n_v14.swf'])
+def base_game(originals: dict[str, bytes]) -> bytes:
+    """The decompressed base game with the separate save name; JPEXS compiles the bootstrap against this."""
+    base = decompress_swf(originals['n_v14.swf'])
     if base.count(SAVE_NAME[0]) != 1:
         raise ValueError('Unexpected base game')
     return base.replace(*SAVE_NAME)
 
 
-def build(originals, bootstrap_tag):
+def build(originals: dict[str, bytes], bootstrap_tag: bytes) -> bytes:
     """Copies the map columns' original DoAction tags into the base game and replaces its final bootstrap."""
     verify(originals)
     base = base_game(originals)
-    actions = [tag for tag in tags(base) if tag[0] == DO_ACTION]
+    actions = [tag for tag in iter_tags(base) if tag[0] == DO_ACTION]
     if len(actions) != 144:
         raise ValueError('Unexpected base game')
-    extra = b''
+    map_tags = b''
     for column in range(10, 20):
-        col = decode(originals[f'col{column}.swf'])
-        (_, start, _, end), = [tag for tag in tags(col) if tag[0] == DO_ACTION]
-        extra += col[start:end]
+        col = decompress_swf(originals[f'col{column}.swf'])
+        (_, start, _, end), = [tag for tag in iter_tags(col) if tag[0] == DO_ACTION]
+        map_tags += col[start:end]
     _, start, _, end = actions[-1]
-    return encode(base[:start] + extra + bootstrap_tag + base[end:])
+    return compress_swf(base[:start] + map_tags + bootstrap_tag + base[end:])

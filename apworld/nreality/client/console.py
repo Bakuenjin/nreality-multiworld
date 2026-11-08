@@ -1,4 +1,4 @@
-"""Message log for the web page: server prints as coloured segments plus the client's own log lines."""
+"""The page's console: server messages as coloured segments plus the client's own log lines."""
 import collections
 import copy
 import logging
@@ -27,6 +27,8 @@ class SegmentParser(JSONtoTextParser):
 
 
 class WebConsole(logging.Handler):
+    """Keeps the last entries; the page fetches the ones after the last ID it has shown."""
+
     def __init__(self, ctx, size: int = 500) -> None:
         super().__init__(logging.INFO)
         self.ctx = ctx
@@ -34,19 +36,19 @@ class WebConsole(logging.Handler):
         self.entries: collections.deque[dict[str, Any]] = collections.deque(maxlen=size)
         self.last_id = 0
 
-    def add(self, parts: list[dict[str, Any]], kind: str, relevant: bool = True) -> None:
+    def add_entry(self, parts: list[dict[str, Any]], kind: str, relevant: bool = True) -> None:
         self.last_id += 1
         self.entries.append(dict(id=self.last_id, time=time.time(), kind=kind, relevant=relevant, parts=parts))
 
     def add_text(self, text: str, kind: str, color: str | None = None) -> None:
-        self.add([dict(text=ANSI.sub("", text), color=color)], kind)
+        self.add_entry([dict(text=ANSI.sub("", text), color=color)], kind)
 
     def add_print_json(self, args: dict[str, Any]) -> None:
         # Item finds between other players are hidden on the page unless the user asks for them.
-        self.add(self.parser(args["data"]), args.get("type", "") or "server",
-                 relevant=not self.ctx.is_uninteresting_item_send(args))
+        self.add_entry(self.parser(args["data"]), args.get("type", "") or "server",
+                       relevant=not self.ctx.is_uninteresting_item_send(args))
 
-    def since(self, after: int) -> list[dict[str, Any]]:
+    def entries_after(self, after: int) -> list[dict[str, Any]]:
         return [entry for entry in self.entries if entry["id"] > after]
 
     def emit(self, record: logging.LogRecord) -> None:

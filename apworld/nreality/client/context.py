@@ -1,3 +1,4 @@
+"""The MultiworldGG side of the client: server connection, checks, unlocks, goal, DeathLink and the page console."""
 import asyncio
 import hashlib
 import math
@@ -11,6 +12,11 @@ from NetUtils import ClientStatus
 from .. import data
 from . import bridge
 from .console import INPUT_COLOR, WebConsole
+from .deathlink import OwnDeathLimiter
+
+# A DeathLink from another world that the game has not picked up within this time is dropped,
+# so it cannot kill a later run.
+DEATHLINK_TIMEOUT = 5
 
 
 class NRealityCommandProcessor(ClientCommandProcessor):
@@ -31,23 +37,17 @@ class NRealityContext(CommonContext):
         super().__init__(server_address, password)
         self.loop = asyncio.get_running_loop()
         self.game_url = f"http://127.0.0.1:{port}"
-        self.link = bridge.GameLink()
-        # Identifies seed, team and slot. The SWF keeps unconfirmed checks per session.
+        self.game_connection = bridge.GameConnection()
+        # Identifies seed, team and slot. The game keeps unconfirmed checks per session.
         self.session: str | None = None
         self.episodes: list[int] = []
         self.goal_episodes = 0
         # Kept across connection losses so a running level can still report its completion.
         self.unlocked: set[int] = set()
-        self.kill_requested = 0.0  # time of the last DeathLink from another world
-        # Limits for own deaths only (slot_data); seeds without them send every death.
-        self.death_link_amnesty = 1
-        self.death_link_per_level = False
-        self.death_link_cooldown = 0
-        self.deaths_counted = 0
-        self.death_scope = ""  # level and pass stamp of the last counted death (per-level amnesty)
-        self.death_link_sent = 0.0
+        self.deathlink_received_at = 0.0
+        self.own_deaths = OwnDeathLimiter()
         self.console = WebConsole(self)
-        self.web_commands = self.command_processor(self)
+        self.page_commands = self.command_processor(self)
         logger.addHandler(self.console)
 
     async def shutdown(self) -> None:
@@ -67,18 +67,17 @@ class NRealityContext(CommonContext):
 
     def on_package(self, cmd: str, args: dict[str, Any]) -> None:
         if cmd == "Connected":
+            slot_data = args["slot_data"]
             identity = f"{self.server_seed_name}|{self.team}|{self.slot}"
             session = hashlib.sha256(identity.encode()).hexdigest()[:16]
             if session != self.session:
-                self.link = bridge.GameLink()
+                self.game_connection = bridge.GameConnection()
                 self.unlocked = set()
             self.session = session
-            self.episodes = sorted(args["slot_data"]["episodes"])
-            self.goal_episodes = args["slot_data"]["goal_episodes"]
-            asyncio.create_task(self.update_death_link(bool(args["slot_data"].get("death_link"))))
-            self.death_link_amnesty = args["slot_data"].get("death_link_amnesty", 1)
-            self.death_link_per_level = args["slot_data"].get("death_link_amnesty_scope") == "per_level"
-            self.death_link_cooldown = args["slot_data"].get("death_link_cooldown", 0)
+            self.episodes = sorted(slot_data["episodes"])
+            self.goal_episodes = slot_data["goal_episodes"]
+            asyncio.create_task(self.update_death_link(bool(slot_data.get("death_link"))))
+            self.own_deaths.configure(slot_data)
             logger.info(f"Game page: {self.game_url}")
         if cmd in ("Connected", "ReceivedItems"):
             received = {data.EPISODE_ID_TO_NUMBER.get(item.item) for item in self.items_received}
@@ -95,37 +94,29 @@ class NRealityContext(CommonContext):
 
     def on_deathlink(self, data: dict[str, Any]) -> None:
         super().on_deathlink(data)
-        self.kill_requested = time.time()
+        self.deathlink_received_at = time.time()
 
-    def count_deaths(self, deaths: int, cause: str, scope: str = "") -> None:
-        """Sends own deaths as DeathLink, limited by cooldown and amnesty. Received DeathLinks are never limited.
-
-        With per-level amnesty the count starts over when the game reports a death in a new scope:
-        a different level, or any level after one was passed.
-        """
-        left = self.death_link_sent + self.death_link_cooldown - time.time()
+    def send_own_deaths(self, deaths: int, cause: str, scope: str) -> None:
+        now = time.time()
+        left = self.own_deaths.cooldown_left(now)
         if left > 0:
             logger.info(f"DeathLink on cooldown ({math.ceil(left)} s left)")
             return
-        if self.death_link_per_level and scope != self.death_scope:
-            self.deaths_counted = 0
-        self.death_scope = scope
-        self.deaths_counted += deaths
-        if self.deaths_counted < self.death_link_amnesty:
-            where = " in this level" if self.death_link_per_level else ""
-            logger.info(f"DeathLink: {self.deaths_counted}/{self.death_link_amnesty} deaths{where}")
+        if not self.own_deaths.count(deaths, scope):
+            where = " in this level" if self.own_deaths.per_level else ""
+            logger.info(f"DeathLink: {self.own_deaths.counted}/{self.own_deaths.amnesty} deaths{where}")
             return
-        self.deaths_counted = 0
-        self.death_link_sent = time.time()
+        self.own_deaths.mark_sent(now)
         asyncio.create_task(self.send_death(f"{self.player_names.get(self.slot, self.auth)} was killed by {cause}."))
 
-    def done_locations(self) -> set[int]:
+    def finished_locations(self) -> set[int]:
+        """Confirmed by the server or sent and not confirmed yet."""
         return self.checked_locations | self.locations_checked
 
     def completed_episodes(self) -> list[int]:
-        done = self.done_locations()
+        finished = self.finished_locations()
         return [ep for ep in self.episodes
-                if all(data.level_location_id(ep, level) in done for level in range(data.LEVELS_PER_EPISODE))]
+                if all(data.level_location_id(ep, level) in finished for level in range(data.LEVELS_PER_EPISODE))]
 
     def check_goal(self) -> None:
         if self.finished_game or not self.goal_episodes or len(self.completed_episodes()) < self.goal_episodes:
@@ -135,8 +126,10 @@ class NRealityContext(CommonContext):
         logger.info("Goal reached!")
         asyncio.create_task(self.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}]))
 
-    # The following run on the event loop; MultiworldBackend calls them from the HTTP thread.
-    def sync_game(self, values: dict[str, str]) -> dict[str, Any]:
+    # The page and the game are served from the HTTP thread; MultiworldBackend runs these on the event loop.
+
+    def handle_game_sync(self, values: dict[str, str]) -> dict[str, Any]:
+        """Takes the game's checks and deaths and answers with unlocks, confirmed checks and pending events."""
         if not self.session or values.get("session") != self.session:
             raise ValueError("Wrong session")
         accepted, dropped = set(), set()
@@ -147,29 +140,28 @@ class NRealityContext(CommonContext):
             elif episode in self.unlocked:
                 accepted.add(data.check_to_location_id(check))
             # else: unlock not known yet (items still arriving); stays pending in the game
-        fresh = accepted - self.locations_checked
-        if fresh:
-            self.locations_checked |= fresh
-            logger.info("Completed " + ", ".join(self.location_names.lookup_in_game(loc) for loc in sorted(fresh)))
-            asyncio.create_task(self.check_locations(fresh))
+        new = accepted - self.locations_checked
+        if new:
+            self.locations_checked |= new
+            logger.info("Completed " + ", ".join(self.location_names.lookup_in_game(loc) for loc in sorted(new)))
+            asyncio.create_task(self.check_locations(new))
             self.check_goal()
-        self.link.seen(values)
+        self.game_connection.record_sync(values)
         deaths = max(0, int(values.get("deaths") or 0))
         if deaths and "DeathLink" in self.tags:
-            self.count_deaths(deaths, (values.get("cause") or "something")[:100],
-                              (values.get("deathScope") or "")[:100])
-        # Deaths from other worlds older than a few seconds are dropped instead of hitting a later run.
-        kill = time.time() - self.kill_requested < 5
-        self.kill_requested = 0.0
+            self.send_own_deaths(deaths, (values.get("cause") or "something")[:100],
+                                 (values.get("deathScope") or "")[:100])
+        kill = time.time() - self.deathlink_received_at < DEATHLINK_TIMEOUT
+        self.deathlink_received_at = 0.0
         confirmed = {data.location_id_to_check(loc) for loc in self.checked_locations}
         # The game adds the time of each Bonus Gold once and remembers how many it has used.
         bonus_gold = sum(item.item == data.FILLER_ITEM_ID for item in self.items_received)
-        return dict(session=self.session, unlocked=bridge.join(self.unlocked),
-                    checked=bridge.join(confirmed | dropped), episodes=bridge.join(self.episodes),
+        return dict(session=self.session, unlocked=bridge.join_numbers(self.unlocked),
+                    checked=bridge.join_numbers(confirmed | dropped), episodes=bridge.join_numbers(self.episodes),
                     deathsAck=deaths, kill=int(kill), bonusGold=bonus_gold)
 
-    def web_command(self, text: str) -> None:
-        """Input line of the page: answers a pending prompt, runs /commands, sends chat and !commands."""
+    def handle_page_input(self, text: str) -> None:
+        """The page's input line: answers a pending prompt, runs /commands, sends chat and !commands."""
         text = text.strip()
         if not text or len(text) > 1000:
             raise ValueError("Invalid input")
@@ -182,45 +174,45 @@ class NRealityContext(CommonContext):
         if not text.startswith("/") and not (self.server and self.server.socket and not self.server.socket.closed):
             self.console.add_text("Not connected to a server. Use /connect <address>.", "error")
             return
-        self.web_commands(text)
+        self.page_commands(text)
 
-    def game_snapshot(self) -> dict[str, Any]:
+    def page_state(self) -> dict[str, Any]:
         goal = None
         if self.session:
             goal = dict(required=self.goal_episodes, completed=len(self.completed_episodes()),
                         done=self.finished_game)
         return dict(mode="multiworld", session=self.session, episodes=self.episodes,
                     unlocked=sorted(self.unlocked), items=None, goal=goal,
-                    checks=sorted(data.location_id_to_check(loc) for loc in self.done_locations()),
+                    checks=sorted(data.location_id_to_check(loc) for loc in self.finished_locations()),
                     server=dict(connected=self.slot is not None, address=self.server_address,
                                 slot=self.auth),
                     inputRequested=self.input_requests > 0, logId=self.console.last_id,
-                    **self.link.snapshot())
+                    **self.game_connection.state())
 
 
 class MultiworldBackend:
-    """Bridge backend that hands every request to the client's event loop."""
+    """bridge.Backend for a MultiworldGG connection: runs every request on the client's event loop."""
     mode = "multiworld"
 
     def __init__(self, ctx: NRealityContext) -> None:
         self.ctx = ctx
 
-    def _call(self, function, *args):
+    def _on_event_loop(self, function, *args):
         async def run():
             return function(*args)
         return asyncio.run_coroutine_threadsafe(run(), self.ctx.loop).result(5)
 
-    def snapshot(self) -> dict[str, Any]:
-        return self._call(self.ctx.game_snapshot)
+    def state(self) -> dict[str, Any]:
+        return self._on_event_loop(self.ctx.page_state)
 
     def sync(self, values: dict[str, str]) -> dict[str, Any]:
-        return self._call(self.ctx.sync_game, values)
+        return self._on_event_loop(self.ctx.handle_game_sync, values)
 
-    def log(self, after: int) -> list[dict[str, Any]]:
-        return self._call(self.ctx.console.since, after)
+    def log_entries(self, after: int) -> list[dict[str, Any]]:
+        return self._on_event_loop(self.ctx.console.entries_after, after)
 
     def command(self, text: str) -> None:
-        self._call(self.ctx.web_command, text)
+        self._on_event_loop(self.ctx.handle_page_input, text)
 
-    def receive(self, receipt, episode) -> None:
+    def receive_test_item(self, receipt: str, episode: int) -> None:
         raise ValueError("Items come from the MultiworldGG server")

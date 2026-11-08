@@ -5,29 +5,29 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
-from tools.bridge import SESSION, bridge
+from tools.offline import SESSION, bridge, gamefiles, offline
 
 
-class BridgeTests(unittest.TestCase):
+class OfflineBackendTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.path = Path(self.directory.name) / 'state.json'
-        self.state = bridge.LocalState(self.path, SESSION)
+        self.backend = offline.OfflineBackend(self.path, SESSION)
 
     def test_item_is_one_episode_and_idempotent(self):
-        self.state.receive('item-0', 100)
-        self.state.receive('item-0', 100)
-        self.assertEqual(self.state.unlocked(), [0, 10, 20, 100])
-        self.assertEqual(len(self.state.data['items']), 1)
-        with self.assertRaises(ValueError): self.state.receive('item-0', 101)
+        self.backend.receive_test_item('item-0', 100)
+        self.backend.receive_test_item('item-0', 100)
+        self.assertEqual(self.backend.unlocked(), [0, 10, 20, 100])
+        self.assertEqual(len(self.backend.data['items']), 1)
+        with self.assertRaises(ValueError): self.backend.receive_test_item('item-0', 101)
 
     def test_checks_deduplicate_and_survive_restart(self):
-        self.state.receive('item-0', 100)
+        self.backend.receive_test_item('item-0', 100)
         for _ in range(2):
-            result = self.state.sync(dict(session=SESSION, checks='500,501,500,'))
+            result = self.backend.sync(dict(session=SESSION, checks='500,501,500,'))
         self.assertEqual(result['checked'], '500,501')
-        restarted = bridge.LocalState(self.path, SESSION)
+        restarted = offline.OfflineBackend(self.path, SESSION)
         self.assertEqual(restarted.data['checks'], [500, 501])
         self.assertEqual(restarted.unlocked(), [0, 10, 20, 100])
         self.assertNotIn(101, restarted.unlocked())
@@ -35,21 +35,21 @@ class BridgeTests(unittest.TestCase):
     def test_locked_invalid_and_wrong_session_checks_rejected_atomically(self):
         for checks in ('0,500', '-1', '1000', 'x'):
             with self.assertRaises(ValueError):
-                self.state.sync(dict(session=SESSION, checks=checks))
-        with self.assertRaises(ValueError): self.state.sync(dict(session='other', checks='0'))
-        self.assertEqual(self.state.data['checks'], [])
+                self.backend.sync(dict(session=SESSION, checks=checks))
+        with self.assertRaises(ValueError): self.backend.sync(dict(session='other', checks='0'))
+        self.assertEqual(self.backend.data['checks'], [])
 
     def test_sync_marks_game_connected(self):
-        self.assertFalse(self.state.snapshot()['connected'])
-        result = self.state.sync(dict(session=SESSION, episode='0', level='2', mapCount='200'))
+        self.assertFalse(self.backend.state()['connected'])
+        result = self.backend.sync(dict(session=SESSION, episode='0', level='2', mapCount='200'))
         self.assertEqual(result['unlocked'], '0,10,20')
-        snapshot = self.state.snapshot()
-        self.assertTrue(snapshot['connected'])
-        self.assertEqual(snapshot['game']['level'], '2')
+        state = self.backend.state()
+        self.assertTrue(state['connected'])
+        self.assertEqual(state['game']['level'], '2')
 
     def test_local_mode_has_no_console(self):
-        self.assertEqual(self.state.log(0), [])
-        with self.assertRaises(ValueError): self.state.command('!hint')
+        self.assertEqual(self.backend.log_entries(0), [])
+        with self.assertRaises(ValueError): self.backend.command('!hint')
 
 
 class HttpTests(unittest.TestCase):
@@ -58,10 +58,11 @@ class HttpTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         folder = Path(directory.name)
         (folder / 'game.swf').write_bytes(b'FWS')
-        state = bridge.LocalState(folder / 'state.json', SESSION)
+        backend = offline.OfflineBackend(folder / 'state.json', SESSION)
         self.server = bridge.ThreadingHTTPServer(('127.0.0.1', 0), None)
         port = self.server.server_address[1]
-        self.server.RequestHandlerClass = bridge.handler_for(state, port, bridge.StaticFiles(folder / 'game.swf', folder))
+        files = gamefiles.FixedGameFiles(folder / 'game.swf', folder)
+        self.server.RequestHandlerClass = bridge.make_request_handler(backend, port, files)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.addCleanup(self.server.shutdown)
         self.url = f'http://127.0.0.1:{port}'

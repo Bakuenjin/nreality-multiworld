@@ -1,33 +1,99 @@
-:root{color-scheme:dark;--bg:#181a1b;--panel:#24292c;--line:#353c40;--text:#e5e7e9;--muted:#99a8ad;--dim:#6f7c80;--bad:#ff8a80;--accent:#316d50;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}
-*{box-sizing:border-box}
-body{margin:0;padding:14px;background:var(--bg)}
-.layout{display:grid;grid-template-columns:792px minmax(320px,1fr);gap:14px;align-items:start}
-.play{display:flex;flex-direction:column;gap:8px;min-width:0}
-ruffle-player{width:792px;height:600px;display:block}
-.panel{width:792px;height:600px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;background:var(--panel);border-radius:10px;color:var(--muted)}
-.panel p{margin:0}
-.panel a{color:var(--text)}
-.dim{color:var(--dim);font-size:14px}
-.error{color:var(--bad)}
-code{background:var(--bg);padding:1px 5px;border-radius:4px}
-.file{cursor:pointer;background:var(--accent);color:#fff;padding:10px 16px;border-radius:6px}
-.file input{display:none}
-#status{margin:0;color:var(--muted);font-size:14px;min-height:1.4em}
-#local{display:flex;gap:8px}
-#local[hidden]{display:none}
-input,button{padding:8px 10px;border:1px solid #576468;border-radius:6px;background:var(--bg);color:#fff;font:inherit;font-size:14px}
-button{cursor:pointer;background:var(--accent)}
-button:disabled,input:disabled{opacity:.45;cursor:default}
-.console{position:sticky;top:14px;height:calc(100vh - 28px);display:flex;flex-direction:column;background:var(--panel);border-radius:10px;padding:12px;min-width:0}
-.others{align-self:flex-end;color:var(--dim);font-size:12px;display:flex;align-items:center;gap:6px;margin-bottom:4px}
-#log{flex:1;overflow-y:auto;font-size:13.5px;line-height:1.45;padding-right:6px;overflow-wrap:anywhere}
-.entry{padding:2px 0}
-.entry time{color:var(--dim);margin-right:8px;font-size:12px;font-variant-numeric:tabular-nums}
-.entry.client{color:var(--muted)}
-.entry.error{color:var(--bad)}
-#log:not(.show-others) .entry.foreign{display:none}
-#command{display:flex;gap:8px;margin-top:10px}
-#input{flex:1;min-width:0}
-#input.requested{border-color:#ffb74d}
-@media(max-width:1150px){.layout{grid-template-columns:1fr}.console{position:static;height:60vh}}
-@media(max-width:830px){ruffle-player,.panel{width:100%;height:auto;aspect-ratio:792/600}}
+/* Colours come from N itself: its light play area and its blue-grey tiles. The dark greys share the tiles' hue. */
+:root {
+  color-scheme: dark;
+  --n-light: #cbc9d1;
+  --n-tile: #797888;
+  --n-ink: #2a2930;
+  --bg: #1b1a20;
+  --panel: #25242b;
+  --line: #3b3a45;
+  --text: #e4e3ea;
+  --muted: #a3a1b2;
+  --dim: #74727f;
+  --button: #6b6a7c;
+  --button-hover: #7e7d91;
+  --bad: #ff8a80;
+  --prompt: #ffb74d;
+  --gap: 14px;
+  --below-game: 30px; /* status line */
+  --console-width: clamp(340px, 26vw, 520px);
+  /* The game keeps its 792:600 shape and grows until the window's width or height runs out. */
+  --game-width: min(calc(100vw - var(--console-width) - 3 * var(--gap)),
+                    calc((100vh - 2 * var(--gap) - var(--below-game)) * 792 / 600));
+  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+:root.test-mode { --below-game: 78px; } /* status line and test item form */
+* { box-sizing: border-box; }
+body { margin: 0; padding: var(--gap); background: var(--bg); }
+
+.layout {
+  display: grid;
+  grid-template-columns: var(--game-width) var(--console-width);
+  gap: var(--gap);
+  justify-content: center;
+  align-items: start;
+}
+
+/* ---- Game and setup panel ---- */
+.play { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.game, ruffle-player, .setup-panel {
+  display: block; width: var(--game-width); height: calc(var(--game-width) * 600 / 792);
+}
+.setup-panel {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center;
+  background: var(--n-light); color: var(--n-ink); border: 12px solid var(--n-tile);
+}
+.setup-panel p { margin: 0; }
+.setup-panel a { color: var(--n-ink); }
+.setup-panel code { background: rgba(42, 41, 48, .1); padding: 1px 6px; border-radius: 3px; }
+.setup-panel .hint { font-size: 14px; color: #55535f; }
+.setup-panel .error { color: #a1271f; }
+.file-button { cursor: pointer; background: var(--button); color: #fff; padding: 10px 18px; border-radius: 4px; }
+.file-button:hover { background: var(--button-hover); }
+.file-button input { display: none; }
+#status { margin: 0; color: var(--muted); font-size: 14px; min-height: 1.4em; }
+#test-item-form { display: flex; gap: 8px; }
+#test-item-form[hidden] { display: none; }
+
+/* ---- Console ---- */
+.console {
+  position: sticky; top: var(--gap); height: calc(100vh - 2 * var(--gap));
+  display: flex; flex-direction: column; min-width: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;
+}
+.show-others {
+  align-self: flex-end; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+  color: var(--dim); font-size: 12px;
+}
+.show-others input { accent-color: var(--n-tile); }
+#log {
+  flex: 1; overflow-y: auto; font-size: 13.5px; line-height: 1.45; padding-right: 6px; overflow-wrap: anywhere;
+  scrollbar-color: var(--line) transparent;
+}
+.entry { padding: 2px 0; }
+.entry time { color: var(--dim); margin-right: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.entry.client { color: var(--muted); }
+.entry.error { color: var(--bad); }
+#log:not(.show-others) .entry.foreign { display: none; }
+#command-form { display: flex; gap: 8px; margin-top: 10px; }
+#command-input { flex: 1; min-width: 0; }
+#command-input.requested { border-color: var(--prompt); }
+
+/* ---- Controls ---- */
+input, button {
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px;
+  background: var(--bg); color: var(--text); font: inherit; font-size: 14px;
+}
+input:focus-visible, button:focus-visible { outline: 2px solid var(--n-tile); outline-offset: 1px; }
+button { cursor: pointer; background: var(--button); border-color: var(--button); color: #fff; }
+button:hover:not(:disabled) { background: var(--button-hover); }
+button:disabled, input:disabled { opacity: .45; cursor: default; }
+
+/* ---- Narrow windows: the console moves below the game ---- */
+@media (max-width: 1000px) {
+  :root { --game-width: calc(100vw - 2 * var(--gap)); }
+  .layout { grid-template-columns: var(--game-width); }
+  .console { position: static; height: 60vh; }
+}

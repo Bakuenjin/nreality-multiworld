@@ -1,3 +1,4 @@
+"""Entry point of NReality Client: starts the page server, the MultiworldGG connection and the GUI."""
 import asyncio
 import os
 import threading
@@ -11,10 +12,9 @@ from CommonClient import get_base_parser, handle_url_arg, logger, server_loop
 from Utils import gui_enabled, user_path
 
 
-def game_files(game_dir: str | None):
+def choose_game_files(game_dir: str | None):
     """The player's own build in the MultiworldGG user folder, or a fixed folder for development."""
-    from . import bridge
-    from .gamefiles import GameFiles, bundled_bootstrap
+    from .gamefiles import FixedGameFiles, GameFiles, bundled_bootstrap
 
     folder = game_dir or os.environ.get("NREALITY_GAME_DIR")
     if not folder:
@@ -22,11 +22,11 @@ def game_files(game_dir: str | None):
     folder = Path(folder)
     for swf in (folder / "n_multiworld.swf", folder / "mod" / "n_multiworld.swf"):
         if swf.is_file() and (folder / "ruffle" / "ruffle.js").is_file():
-            return bridge.StaticFiles(swf, folder / "ruffle")
+            return FixedGameFiles(swf, folder / "ruffle")
     raise FileNotFoundError(f"n_multiworld.swf and ruffle/ruffle.js not found in {folder}")
 
 
-def prepare(files) -> None:
+def prepare_in_background(files) -> None:
     try:
         files.prepare()
     except Exception as error:
@@ -37,12 +37,12 @@ async def main(args) -> None:
     from . import bridge
     from .context import MultiworldBackend, NRealityContext
 
-    files = game_files(args.game_dir)
+    files = choose_game_files(args.game_dir)
     ctx = NRealityContext(args.connect, args.password, args.port)
     ctx.auth = args.name
-    http = bridge.serve(MultiworldBackend(ctx), args.port, files)
-    if hasattr(files, "prepare"):
-        threading.Thread(target=prepare, args=(files,), name="NReality setup", daemon=True).start()
+    page_server = bridge.serve(MultiworldBackend(ctx), args.port, files)
+    if hasattr(files, "prepare"):  # the player's own build: rebuild or fetch Ruffle if needed
+        threading.Thread(target=prepare_in_background, args=(files,), name="NReality setup", daemon=True).start()
     ctx.server_task = asyncio.create_task(server_loop(ctx), name="server loop")
     if gui_enabled:
         ctx.run_gui()
@@ -51,7 +51,7 @@ async def main(args) -> None:
     if not args.no_browser:
         webbrowser.open(ctx.game_url)
     await ctx.exit_event.wait()
-    http.shutdown()
+    page_server.shutdown()
     await ctx.shutdown()
 
 
