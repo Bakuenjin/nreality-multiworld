@@ -3,14 +3,14 @@
 <title>NReality Multiworld</title><link rel="stylesheet" href="/style.css">
 <script src="/ruffle/ruffle.js" defer></script><script src="/app.js" defer></script></head>
 <body><main class="layout">
-<section class="play">
-<div id="game"><div id="panel" class="panel"></div></div>
+<section class="play" aria-label="Game">
+<div id="game" class="game"><div id="setup-panel" class="setup-panel"></div></div>
 <p id="status" role="status"></p>
-<form id="local" hidden><input id="item" type="number" min="0" max="199" value="100" required aria-label="Episode"><button type="submit">Test item</button></form>
+<form id="test-item-form" hidden><input id="test-episode" type="number" min="0" max="199" value="100" required aria-label="Episode"><button type="submit">Test item</button></form>
 </section>
 <section class="console" aria-label="Console">
-<label class="others"><input type="checkbox" id="others"> Other players' finds</label>
+<label class="show-others"><input type="checkbox" id="show-others"> Other players' finds</label>
 <div id="log" role="log" aria-live="polite"></div>
-<form id="command"><input id="input" autocomplete="off" spellcheck="false" aria-label="Chat or command" placeholder="Chat, !hint, /connect …"><button type="submit">Send</button></form>
+<form id="command-form"><input id="command-input" autocomplete="off" spellcheck="false" aria-label="Chat or command" placeholder="Chat, !hint, /connect …"><button id="command-send" type="submit">Send</button></form>
 </section>
 </main></body></html>

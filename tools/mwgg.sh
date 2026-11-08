@@ -4,4 +4,6 @@
 set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT/.local/vendor/MultiworldGG"
-exec "$ROOT/.local/venv-mwgg/bin/python" "$@"
+PYTHON="$ROOT/.local/venv-mwgg/bin/python"
+[ -x "$PYTHON" ] || PYTHON="$ROOT/.local/venv-mwgg/Scripts/python.exe"  # Windows venv layout
+exec "$PYTHON" "$@"

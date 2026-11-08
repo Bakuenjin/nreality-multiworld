@@ -1,4 +1,4 @@
-"""Game files in the player's folder: originals from their NReality ZIP, the built SWF and the Ruffle runtime."""
+"""Where the page gets the game from: the player's own build (GameFiles) or a fixed folder (FixedGameFiles)."""
 import hashlib
 import io
 import json
@@ -16,12 +16,13 @@ RUFFLE_URL = 'https://github.com/ruffle-rs/ruffle/releases/download/v0.7.1/ruffl
 RUFFLE_SHA256 = 'ef12edbee135d581a9cd523837d746da30a07a64dbf1cf472d2e472c656f4b5e'
 
 
-def bundled_bootstrap():
+def bundled_bootstrap() -> bytes:
+    """The compiled mod (an SWF DoAction tag) that ships with the apworld."""
     # The module loader reads from a plain folder as well as from inside a zipped .apworld.
     return __loader__.get_data(os.path.join(os.path.dirname(__file__), 'bootstrap.bin'))
 
 
-def download_ruffle():
+def download_ruffle() -> bytes:
     try:
         import certifi
         context = ssl.create_default_context(cafile=certifi.where())
@@ -31,17 +32,22 @@ def download_ruffle():
         return response.read(64 * 1024 * 1024)
 
 
-def write_atomic(path, data):
+def write_atomic(path: Path, data: bytes) -> None:
     temp = path.with_suffix(path.suffix + '.tmp')
     temp.write_bytes(data)
     os.replace(temp, path)
 
 
 class GameFiles:
-    def __init__(self, folder, bootstrap_tag, fetch_ruffle=download_ruffle):
+    """The player's folder: originals from their NReality ZIP, the SWF built from them and the Ruffle runtime.
+
+    build.json records which mod the SWF was built with, so an apworld update rebuilds it from the stored originals.
+    """
+
+    def __init__(self, folder: Path, bootstrap_tag: bytes, fetch_ruffle=download_ruffle) -> None:
         self.folder = Path(folder)
-        self.tag = bootstrap_tag
-        self.version = hashlib.sha256(bootstrap_tag).hexdigest()
+        self.bootstrap_tag = bootstrap_tag
+        self.bootstrap_hash = hashlib.sha256(bootstrap_tag).hexdigest()
         self.fetch_ruffle = fetch_ruffle
         self.swf = self.folder / 'n_multiworld.swf'
         self.ruffle = self.folder / 'ruffle'
@@ -50,23 +56,23 @@ class GameFiles:
         self.busy = False
         self.message = ''
 
-    def built_version(self):
+    def built_bootstrap_hash(self) -> str | None:
         try:
             return json.loads((self.folder / 'build.json').read_text())['bootstrap_sha256']
         except (OSError, ValueError, KeyError):
             return None
 
-    def has_originals(self):
+    def has_originals(self) -> bool:
         return all((self.originals / name).is_file() for name in patcher.ORIGINALS)
 
-    def ready(self):
-        return (self.swf.is_file() and self.built_version() == self.version
+    def ready(self) -> bool:
+        return (self.swf.is_file() and self.built_bootstrap_hash() == self.bootstrap_hash
                 and (self.ruffle / 'ruffle.js').is_file())
 
-    def state(self):
+    def state(self) -> dict:
         return dict(ready=self.ready(), busy=self.busy, message=self.message)
 
-    def install(self, archive):
+    def install(self, archive: bytes) -> None:
         """Stores the needed files of the uploaded NReality6g2.zip and prepares the game."""
         originals = patcher.read_archive(io.BytesIO(archive))
         self.originals.mkdir(parents=True, exist_ok=True)
@@ -74,16 +80,18 @@ class GameFiles:
             write_atomic(self.originals / name, data)
         self.prepare()
 
-    def prepare(self):
+    def prepare(self) -> None:
         """Rebuilds the SWF after an update of the mod and fetches Ruffle once. Safe to call repeatedly."""
         with self.lock:
             self.busy = True
             try:
-                if self.has_originals() and (not self.swf.is_file() or self.built_version() != self.version):
+                outdated = not self.swf.is_file() or self.built_bootstrap_hash() != self.bootstrap_hash
+                if self.has_originals() and outdated:
                     self.message = 'Building the game'
                     originals = {name: (self.originals / name).read_bytes() for name in patcher.ORIGINALS}
-                    write_atomic(self.swf, patcher.build(originals, self.tag))
-                    write_atomic(self.folder / 'build.json', json.dumps(dict(bootstrap_sha256=self.version)).encode())
+                    write_atomic(self.swf, patcher.build(originals, self.bootstrap_tag))
+                    build_info = json.dumps(dict(bootstrap_sha256=self.bootstrap_hash)).encode()
+                    write_atomic(self.folder / 'build.json', build_info)
                 if self.swf.is_file() and not (self.ruffle / 'ruffle.js').is_file():
                     self.message = 'Downloading Ruffle'
                     self.install_ruffle(self.fetch_ruffle())
@@ -94,7 +102,7 @@ class GameFiles:
             finally:
                 self.busy = False
 
-    def install_ruffle(self, archive):
+    def install_ruffle(self, archive: bytes) -> None:
         if hashlib.sha256(archive).hexdigest() != RUFFLE_SHA256:
             raise ValueError('Ruffle download has an unexpected checksum')
         temp = self.folder / 'ruffle.tmp'
@@ -110,3 +118,16 @@ class GameFiles:
             raise ValueError('Ruffle download does not contain ruffle.js')
         shutil.rmtree(self.ruffle, ignore_errors=True)
         os.replace(temp, self.ruffle)
+
+
+class FixedGameFiles:
+    """A ready SWF and Ruffle folder given on the command line (development, offline test mode, --game-dir)."""
+
+    def __init__(self, swf: Path, ruffle: Path) -> None:
+        self.swf, self.ruffle = Path(swf), Path(ruffle)
+
+    def state(self) -> dict:
+        return dict(ready=True, busy=False, message='')
+
+    def install(self, archive: bytes) -> None:
+        raise ValueError('The game folder was given on the command line')
